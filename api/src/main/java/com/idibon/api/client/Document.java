@@ -59,7 +59,7 @@ public class Document {
 	}
 
 	public String getId() {
-		return id;
+		return this.id;
 	}
 
 	public String getCreatedAt() {
