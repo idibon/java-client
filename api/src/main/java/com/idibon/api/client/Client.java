@@ -14,7 +14,7 @@ public class Client {
 
 	private String apiKey = "";
 	private String apiPwd = "";
-	private String apiUrl = "dev-api.idibon.com";
+	private String apiUrl = "api.idibon.com";
 	private Gson gson = new Gson();
 	private String url;
 	private String method;
@@ -22,12 +22,12 @@ public class Client {
 	private int port;
 
 	public Client() {
-		this(System.getenv().get("IDIBON_API_KEY"), "dev-api.idibon.com", 443,
+		this(System.getenv().get("IDIBON_API_KEY"), "api.idibon.com", 443,
 				new DefaultHttpClient());
 	}
 
 	public Client(String apiKey) {
-		this(apiKey, "dev-api.idibon.com", 443, new DefaultHttpClient());
+		this(apiKey, "api.idibon.com", 443, new DefaultHttpClient());
 	}
 
 	public Client(String apiKey, String host, int port) {
