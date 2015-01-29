@@ -77,4 +77,46 @@ public class JdkHttpInterfaceTest {
         intf.withoutHostnameValidation().httpGet("/");
     }
 
+    @Test public void handleChunkedInput() throws Exception {
+        JdkHttpInterface intf = new JdkHttpInterface();
+        java.lang.reflect.Method method = JdkHttpInterface.class.
+            getDeclaredMethod("handleChunkedInput",
+                              InputStream.class, String.class);
+        method.setAccessible(true);
+        String boundary = "BBB";
+
+        String chunkedJSON = "{\"a\":1}--BBB{\"a\":10}--BBB{\"a\":100}--BBB--";
+        InputStream input = new ByteArrayInputStream(chunkedJSON.getBytes("UTF-8"));
+        JsonElement result = (JsonElement)method.invoke(intf, input, boundary);
+
+        assertThat(result, is(instanceOf(JsonArray.class)));
+
+        JsonArray resultArray = (JsonArray)result;
+        assertThat(resultArray.size(), is(3));
+
+        for (int i = 0; i < resultArray.size(); i++) {
+            JsonElement e = resultArray.get(i);
+            assertThat(e, is(instanceOf(JsonObject.class)));
+            assertThat(((JsonObject)e).get("a").getAsLong(), is((long)Math.pow(10, i)));
+        }
+    }
+
+    /* verify that an exception is thrown if the last chunk does not have the
+     * spec-defined two trailing hyphens */
+    @Test(expected = IOException.class)
+    public void handleBadChunkedInput() throws Throwable {
+        JdkHttpInterface intf = new JdkHttpInterface();
+        java.lang.reflect.Method method = JdkHttpInterface.class.
+            getDeclaredMethod("handleChunkedInput",
+                              InputStream.class, String.class);
+        method.setAccessible(true);
+        String boundary = "BBB";
+        String broken = "--BBB";
+        InputStream input = new ByteArrayInputStream(broken.getBytes("UTF-8"));
+        try {
+            method.invoke(intf, input, boundary);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            throw ex.getCause();
+        }
+    }
 }

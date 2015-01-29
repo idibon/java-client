@@ -13,6 +13,8 @@ import com.idibon.api.http.*;
 import com.google.gson.*;
 import com.google.gson.stream.JsonWriter;
 
+import com.idibon.api.util.ExtendedByteArrayOutputStream;
+
 import static java.net.HttpURLConnection.*;
 
 /**
@@ -159,6 +161,11 @@ public class JdkHttpInterface implements HttpInterface {
         throw new UnsupportedOperationException("Not yet!");
     }
 
+    /**
+     * Reads the HTTP response from the server and parses the embedded JSON.
+     * If the response uses chunked encoding, each of the chunks will be
+     * parsed and added to an array
+     */
     private JsonElement maybeHandleChunkedInput(HttpURLConnection conn)
         throws IOException {
 
@@ -168,11 +175,60 @@ public class JdkHttpInterface implements HttpInterface {
             if (transferEncoding == null)
                 return readJsonStream(is);
 
-            JsonArray array = new JsonArray();
-            throw new UnsupportedOperationException("Chunked encoding");
+            String contentType = conn.getHeaderField("Content-Type");
+            if (contentType == null)
+                throw new IOException("Missing header field Content-Type");
+
+            int boundaryIndex = contentType.indexOf("boundary=");
+            if (boundaryIndex == -1)
+                throw new IOException("Chunk boundary missing");
+
+            String boundary = contentType.substring(boundaryIndex + 9);
+            return handleChunkedInput(is, boundary);
         } finally {
             is.close();
         }
+    }
+
+    /**
+     * Reads chunked data from the input stream, returning an array
+     * of the JSON elements from each chunk.
+     *
+     * @param is Data stream to read
+     * @param boundary The chunk boundary from the HTTP header
+     */
+    private static JsonElement handleChunkedInput(InputStream is,
+        String boundary) throws IOException {
+
+        byte[] sep = ("--" + boundary).getBytes(UTF8);
+
+        JsonArray array = new JsonArray();
+        ExtendedByteArrayOutputStream bs = new ExtendedByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+
+        /* read from the input stream until all data has been consumed,
+         * appending the intermediate data to the byte stream */
+        for (int len = is.read(buffer); len != -1; len = is.read(buffer)) {
+            bs.write(buffer, 0, len);
+            /* the buffered read may result in multiple chunks existing in
+             * the byte stream. process each chunk and then consume the
+             * parsed bytes from the byte stream. */
+            for (int i = bs.indexOf(sep); i != -1; i = bs.indexOf(sep)) {
+                // don't try to read a JSON stream if there is no data to read
+                if (i != 0) array.add(readJsonStream(bs.toInputStream(0, i)));
+                // discard the chunk and separator that was just processed
+                bs.dropFirst(i + sep.length);
+            }
+        }
+
+        /* per spec, the last chunk should be demarcated by two hyphens
+         * following the last boundary marker. since the last boundary marker
+         * should be dropped by the loop above, the byte stream should be
+         * just the two trailing hyphens (45 = ASCII for '-') */
+        if (bs.size() != 2 || !bs.endsWith(new byte[]{ 45, 45 }))
+            throw new IOException("Invalid chunked transfer encoding");
+
+        return array;
     }
 
     /**
@@ -182,7 +238,7 @@ public class JdkHttpInterface implements HttpInterface {
      * @param stream InputStream to consume
      * @return parsed JSON element
      */
-    private JsonElement readJsonStream(InputStream stream)
+    private static JsonElement readJsonStream(InputStream stream)
         throws IOException {
 
         JsonParser parser = new JsonParser();
