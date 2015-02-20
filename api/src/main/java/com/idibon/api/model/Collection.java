@@ -34,6 +34,13 @@ public class Collection extends IdibonHash {
         _name = name;
     }
 
+    /**
+     * Returns a DocumentIterator instance to search for specific documents.
+     */
+    public DocumentSearcher documents() {
+        return new DocumentSearcher(this, _httpIntf);
+    }
+
     /// The name of the collection (un-escaped)
     private final String _name;
 }

@@ -58,6 +58,13 @@ public class IdibonHash {
         return result;
     }
 
+    /**
+     * Returns the configured endpoint for this object.
+     */
+    public String getEndpoint() {
+        return _endpoint;
+    }
+
     @Override public int hashCode() {
         return _endpoint.hashCode();
     }
