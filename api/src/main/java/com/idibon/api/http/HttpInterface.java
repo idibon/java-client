@@ -5,6 +5,7 @@
 package com.idibon.api.http;
 
 import java.io.*;
+import java.util.concurrent.Future;
 import com.google.gson.JsonElement;
 
 /**
@@ -21,7 +22,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public JsonElement httpGet(String endpoint)
+    public Future<JsonElement> httpGet(String endpoint)
         throws IOException;
 
     /**
@@ -33,7 +34,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public JsonElement httpGet(String endpoint, JsonElement body)
+    public Future<JsonElement> httpGet(String endpoint, JsonElement body)
         throws IOException;
 
     /**
@@ -45,7 +46,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public JsonElement httpPut(String endpoint, JsonElement body)
+    public Future<JsonElement> httpPut(String endpoint, JsonElement body)
         throws IOException;
 
     /**
@@ -57,7 +58,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public JsonElement httpPost(String endpoint, JsonElement body)
+    public Future<JsonElement> httpPost(String endpoint, JsonElement body)
         throws IOException;
 
     /**
@@ -69,6 +70,14 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public JsonElement httpDelete(String endpoint, JsonElement body)
+    public Future<JsonElement> httpDelete(String endpoint, JsonElement body)
         throws IOException;
+
+    /**
+     * Waits for pending operations to complete and shuts down any execution
+     * threads that were created.
+     *
+     * @param quiesceTime The maximum time to wait, in milliseconds.
+     */
+    public void shutdown(long quiesceTime);
 }

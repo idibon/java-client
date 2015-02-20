@@ -6,6 +6,7 @@ package com.idibon.api.http.impl;
 import java.io.*;
 import java.net.*;
 import javax.net.ssl.*;
+import java.util.concurrent.*;
 import java.nio.charset.Charset;
 
 import com.idibon.api.http.*;
@@ -68,76 +69,63 @@ public class JdkHttpInterface implements HttpInterface {
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpGet(String)}
      */
-    public JsonElement httpGet(String endpoint)
-        throws IOException {
-
-        HttpURLConnection conn = getConnection(endpoint);
-        conn.setDoInput(true);
-        conn.setDoOutput(false);
-        conn.setRequestMethod("GET");
-
-        InputStream is = null;
-        try {
-            is = new BufferedInputStream(conn.getInputStream());
-            return readJsonStream(is);
-        } catch (IOException ex) {
-            /* if an HTTP protocol (3xx, 4xx, 5xx) error caused this exception,
-             * convert it to a more meaningful exception tree rather than just
-             * an IOException */
-            int responseCode = -1;
-            try {
-                responseCode = conn.getResponseCode();
-            } catch (IOException ignored) { }
-
-            if (responseCode != -1 && responseCode != HTTP_OK)
-                throw HttpException.from(conn, ex);
-
-            // otherwise, re-throw the original exception
-            throw ex;
-        } finally {
-            if (is != null) is.close();
-        }
+    public Future<JsonElement> httpGet(String endpoint) throws IOException {
+        return httpGet(endpoint, null);
     }
 
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpGet(String, JsonElement)}
      */
-    public JsonElement httpGet(String endpoint, JsonElement body)
-        throws IOException {
+    public Future<JsonElement> httpGet(final String endpoint,
+                                       final JsonElement body) throws IOException {
 
-        HttpURLConnection conn = getConnection(endpoint);
-        conn.setDoInput(true);
-        conn.setDoOutput(true);
-        conn.setRequestMethod("GET");
+        Callable<JsonElement> async = new Callable<JsonElement>() {
+            public JsonElement call() throws IOException {
+                HttpURLConnection conn = getConnection(endpoint);
+                conn.setDoInput(true);
+                conn.setDoOutput(body != null);
+                conn.setRequestMethod("GET");
 
-        OutputStream os = null;
+                OutputStream os = null;
+                try {
+                    if (body != null) {
+                        os = new BufferedOutputStream(conn.getOutputStream());
+                        writeJsonStream(body, os);
+                    }
+                    return maybeHandleChunkedInput(conn);
+                } catch (IOException ex) {
+                    /* if an HTTP protocol (3xx, 4xx, 5xx) error caused this
+                     * exception, convert it to a more meaningful exception tree
+                     * rather than just an IOException */
+                    int responseCode = -1;
+                    try {
+                        responseCode = conn.getResponseCode();
+                    } catch (IOException ignored) { }
+
+                    if (responseCode != -1 && responseCode != HTTP_OK)
+                        throw HttpException.from(conn, ex);
+
+                    // otherwise, re-throw the original exception
+                    throw ex;
+                } finally {
+                    if (os != null) os.close();
+                }
+            }
+        };
+
+        FutureTask<JsonElement> future = new FutureTask<JsonElement>(async);
         try {
-            os = new BufferedOutputStream(conn.getOutputStream());
-            writeJsonStream(body, os);
-            return maybeHandleChunkedInput(conn);
-        } catch (IOException ex) {
-            /* if an HTTP protocol (3xx, 4xx, 5xx) error caused this exception,
-             * convert it to a more meaningful exception tree rather than just
-             * an IOException */
-            int responseCode = -1;
-            try {
-                responseCode = conn.getResponseCode();
-            } catch (IOException ignored) { }
-
-            if (responseCode != -1 && responseCode != HTTP_OK)
-                throw HttpException.from(conn, ex);
-
-            // otherwise, re-throw the original exception
-            throw ex;
-        } finally {
-            if (os != null) os.close();
+            _threadPool.submit(future);
+            return future;
+        } catch (RejectedExecutionException ex) {
+            throw new IOException("Unable to perform asynchronous GET", ex);
         }
     }
 
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpPut(String, JsonElement)}
      */
-    public JsonElement httpPut(String endpoint, JsonElement body)
+    public Future<JsonElement> httpPut(String endpoint, JsonElement body)
         throws IOException {
 
         throw new UnsupportedOperationException("Not yet!");
@@ -146,7 +134,7 @@ public class JdkHttpInterface implements HttpInterface {
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonElement)}
      */
-    public JsonElement httpPost(String endpoint, JsonElement body)
+    public Future<JsonElement> httpPost(String endpoint, JsonElement body)
         throws IOException {
 
         throw new UnsupportedOperationException("Not yet!");
@@ -155,10 +143,26 @@ public class JdkHttpInterface implements HttpInterface {
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonElement)}
      */
-    public JsonElement httpDelete(String endpoint, JsonElement body)
+    public Future<JsonElement> httpDelete(String endpoint, JsonElement body)
         throws IOException {
 
         throw new UnsupportedOperationException("Not yet!");
+    }
+
+    /**
+     * Implements {@link com.idibon.api.http.HttpInterface@shutdown(long)}
+     */
+    public void shutdown(long quiesceTime) {
+        _threadPool.shutdown();
+        boolean clean = false;
+        try {
+            clean = _threadPool.awaitTermination(quiesceTime,
+                                                 TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ex) {
+            // ignore
+        } finally {
+            if (!clean) _threadPool.shutdownNow();
+        }
     }
 
     /**
@@ -370,6 +374,11 @@ public class JdkHttpInterface implements HttpInterface {
 
     /// The API Key used for authentication, or null if no auth needed.
     private String _apiKey = null;
+
+    /// Asynchronous execution threads for FutureTasks
+    private final ThreadPoolExecutor _threadPool =
+        new ThreadPoolExecutor(3, 8, 20, TimeUnit.SECONDS,
+                               new LinkedBlockingQueue<Runnable>());
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
 
