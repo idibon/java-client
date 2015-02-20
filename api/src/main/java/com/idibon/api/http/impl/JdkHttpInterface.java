@@ -89,8 +89,20 @@ public class JdkHttpInterface implements HttpInterface {
                 OutputStream os = null;
                 try {
                     if (body != null) {
-                        os = new BufferedOutputStream(conn.getOutputStream());
-                        writeJsonStream(body, os);
+                        /* Serialize the JSON payload and set the content-length
+                         * header appropriately */
+                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                        writeJsonStream(body, bos);
+                        byte[] bytes = bos.toByteArray();
+                        /* Java's HttpURLConnection has a (major) bug in
+                         * getOutputStream which forces the method to POST.
+                         * Use the X-HTTP-Method-Override header so that the
+                         * server will treat the request as a GET. */
+                        conn.setRequestProperty("X-HTTP-Method-Override", "GET");
+                        conn.setRequestProperty("Content-Length",
+                                                Integer.toString(bytes.length));
+                        os = conn.getOutputStream();
+                        os.write(bytes);
                     }
                     return maybeHandleChunkedInput(conn);
                 } catch (IOException ex) {
@@ -100,7 +112,7 @@ public class JdkHttpInterface implements HttpInterface {
                     int responseCode = -1;
                     try {
                         responseCode = conn.getResponseCode();
-                    } catch (IOException ignored) { }
+                    } catch (IOException _) { }
 
                     if (responseCode != -1 && responseCode != HTTP_OK)
                         throw HttpException.from(conn, ex);
@@ -321,6 +333,16 @@ public class JdkHttpInterface implements HttpInterface {
             String credentials = base64Encode(_apiKey + ":");
             http.setRequestProperty("Authorization", "Basic " + credentials);
         }
+
+        if (_serverAddress.getPort() != -1) {
+            String host = String.format("%s:%d", _serverAddress.getHost(),
+                                        _serverAddress.getPort());
+            http.setRequestProperty("Host", host);
+        } else {
+            http.setRequestProperty("Host", _serverAddress.getHost());
+        }
+
+        http.setUseCaches(false);
 
         return http;
     }
