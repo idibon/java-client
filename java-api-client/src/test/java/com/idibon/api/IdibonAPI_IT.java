@@ -17,7 +17,7 @@ import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
 import static com.idibon.api.model.DocumentSearcher.ReturnData.*;
 
-public class IdibonAPITest {
+public class IdibonAPI_IT {
 
     private static IdibonAPI _apiClient;
 

@@ -16,7 +16,7 @@ import com.idibon.api.http.HttpException;
 import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
 
-public class JdkHttpInterfaceTest {
+public class JdkHttpInterfaceIT {
 
     private static String _apiKey;
     private static String _apiTarget;
