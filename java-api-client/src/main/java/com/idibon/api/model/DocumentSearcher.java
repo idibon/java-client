@@ -319,6 +319,10 @@ public class DocumentSearcher implements Iterable<Document> {
                 args.addProperty("skip_annotations", true);
             }
 
+            /* always use compact wire format for tokens, annotations and
+             * features */
+            args.addProperty("format", "compact");
+
             if (_returns[ReturnData.TaskFeatures.ordinal()]) {
                 String task = _taskFeatureGen != null ?
                     _taskFeatureGen : _taskFilter[0];

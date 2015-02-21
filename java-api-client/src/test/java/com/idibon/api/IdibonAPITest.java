@@ -70,8 +70,9 @@ public class IdibonAPITest {
             JsonElement anns = d.getJson().get("annotations");
             assertThat(anns, either(is(instanceOf(JsonArray.class))).or(is(nullValue())));
             count++;
+            if (count >= 3000) break;
         }
-        assertThat(count, is(75113));
+        assertThat(count, is(3000));
     }
 
     @AfterClass public static void shutdown() {
