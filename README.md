@@ -23,8 +23,8 @@ from the top-level directory.
 * To install the API client JAR in your local maven repository, run
   `mvn install` from the `java-api-client/` directory.
 
-* To generate JavaDocs for the API client, run `mvn javadoc` from the
-  `java-api-client/` directory.
+* To generate JavaDocs for the API client, run `mvn javadoc:javadoc` from
+  the `java-api-client/` directory.
 
 ## Example Apps
 

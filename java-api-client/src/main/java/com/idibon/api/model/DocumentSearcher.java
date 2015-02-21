@@ -22,14 +22,29 @@ public class DocumentSearcher implements Iterable<Document> {
 
     /**
      * Types of data that can be returned in various search
-     * modes
+     * modes. See {@link com.idibon.api.model.DocumentSearcher#returning}
      */
     public enum ReturnData {
-        TaskAnnotations, /// include annotations for just the searched-for tasks
-        AllAnnotations,  /// include annotations for all tasks
-        TaskFeatures,    /// include the document features for the searched task
-        DocumentTokens,  /// return the tokenized document content
-        DocumentContent; /// return the document content and metadata
+        /**
+         * include annotations for just the searched-for tasks
+         */
+        TaskAnnotations,
+        /**
+         * include annotations for all tasks
+         */
+        AllAnnotations,
+        /**
+         * include the document features for the searched task
+         */
+        TaskFeatures,
+        /**
+         * return the tokenized document content
+         */
+        DocumentTokens,
+        /**
+         * return the document content and metadata
+         */
+        DocumentContent;
     }
 
     /**

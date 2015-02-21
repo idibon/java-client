@@ -162,7 +162,7 @@ public class JdkHttpInterface implements HttpInterface {
     }
 
     /**
-     * Implements {@link com.idibon.api.http.HttpInterface@shutdown(long)}
+     * Implements {@link com.idibon.api.http.HttpInterface#shutdown(long)}
      */
     public void shutdown(long quiesceTime) {
         _threadPool.shutdown();
