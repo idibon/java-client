@@ -82,6 +82,38 @@ public class DocumentSearcher implements Iterable<Document> {
     }
 
     /**
+     * Limits the search to just the first <tt>count</tt> results.
+     *
+     * @param count The maximum number of search results to return.
+     */
+    public DocumentSearcher first(long count) {
+        if (count <= 0)
+            throw new IllegalArgumentException("count must be positive");
+        _limitCount = count;
+        return this;
+    }
+
+    /**
+     * Limits the search to the first result. Shorthand for <tt>first(1)</tt>
+     */
+    public DocumentSearcher first() {
+        return first(1);
+    }
+
+    /**
+     * Ignores the first <tt>count</tt> search results.
+     *
+     * @param count The number of matching documents to skip before returning
+     *              the first result.
+     */
+    public DocumentSearcher ignoring(long count) {
+        if (count < 0)
+            throw new IllegalArgumentException("count may not be negative");
+        _ignoreCount = count;
+        return this;
+    }
+
+    /**
      * Searches for documents that include the provided text string in
      * the content field.
      *
@@ -222,6 +254,12 @@ public class DocumentSearcher implements Iterable<Document> {
     // Specific generator task for returned features
     private String _taskFeatureGen;
 
+    // Limit number of search results
+    private long _limitCount = Long.MAX_VALUE;
+
+    // Number of matching items to ignore before returning the first result.
+    private long _ignoreCount = 0;
+
     /**
      * Inner class responsible for paging through HTTP results and converting
      * the results into Document instances.
@@ -232,6 +270,8 @@ public class DocumentSearcher implements Iterable<Document> {
             /* cache the streaming mode, since the format of the returned
              * JSON elements will be different */
             _streaming = needsStreamingMode();
+            _limitRemain = _limitCount;
+            _nextStart = _ignoreCount;
 
             if (_streaming) {
                 _query.add("stream", true);
@@ -281,7 +321,8 @@ public class DocumentSearcher implements Iterable<Document> {
             _offset += 1;
             if (_streaming) {
                 String n = obj.getJsonObject("document").getString("name");
-                return new Document(n, _collection, _httpIntf).preload(obj);
+                return new Document(n, _collection, _httpIntf)
+                    .preload(expandDocument(obj));
             } else {
                 String name = obj.getString("name");
                 /* preload the returned Document object with whatever data
@@ -363,9 +404,10 @@ public class DocumentSearcher implements Iterable<Document> {
             }
 
             _nextStart += _currentBatch.size();
+            _limitRemain -= _currentBatch.size();
 
             // pre-load the next batch if one exists
-            if (cursor != null) dispatchNext(cursor);
+            if (cursor != null && _limitRemain > 0) dispatchNext(cursor);
         }
 
         /**
@@ -377,7 +419,11 @@ public class DocumentSearcher implements Iterable<Document> {
                 _query.addNull("cursor");
             else
                 _query.add("cursor", cursor);
+            // to prevent infinite loops on lost cursors, always include start
             _query.add("start", _nextStart);
+            /* restrict the results to the lesser of the server max (1000) and
+             * the desired number of results */
+            _query.add("limit", Math.min(1000L, _limitRemain));
             try {
                 _nextBatch = _httpIntf.httpGet(_endpoint, _query.build());
             } catch (IOException ex) {
@@ -401,5 +447,6 @@ public class DocumentSearcher implements Iterable<Document> {
         private JsonArray _currentBatch;
         private int _offset;
         private long _nextStart;
+        private long _limitRemain;
     }
 }

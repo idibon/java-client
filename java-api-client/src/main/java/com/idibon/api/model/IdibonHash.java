@@ -72,7 +72,7 @@ public class IdibonHash {
      * Returns a percent-encoded string suitable for use in URL paths.
      *
      * @param str String to encode
-     * @returns Encoded string
+     * @return Encoded string
      */
     public static String percentEncode(String str) {
         try {
