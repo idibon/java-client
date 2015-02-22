@@ -124,6 +124,7 @@ public class Document extends IdibonHash {
     /**
      * Forces cached JSON data to be reloaded from the server.
      */
+    @SuppressWarnings("unchecked")
     @Override public Document invalidate() {
         super.invalidate();
         _jsonCache = null;
@@ -139,7 +140,7 @@ public class Document extends IdibonHash {
          * threads may each instantiate a ConcurrentHashMap, and all but
          * one of the instances will be GCd immediately. */
         if (_jsonCache == null)
-            _jsonCache = new ConcurrentHashMap<Keys, Object>();
+            _jsonCache = new ConcurrentHashMap<>();
         return result;
     }
 

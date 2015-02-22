@@ -28,7 +28,7 @@ public class Collection extends IdibonHash {
 
         if (_cachedTasks == null) {
             // cache Task instances for every task in this collection
-            Map<String, JsonObject> m = new LinkedHashMap<String, JsonObject>();
+            Map<String, JsonObject> m = new LinkedHashMap<>();
             JsonArray tasks = collection.getJsonArray("tasks");
             if (tasks != null) {
                 for (JsonObject t : tasks.getValuesAs(JsonObject.class))
@@ -82,6 +82,7 @@ public class Collection extends IdibonHash {
     /**
      * Invalidate cached data.
      */
+    @SuppressWarnings("unchecked")
     @Override public Collection invalidate() {
         super.invalidate();
         _cachedTasks = null;

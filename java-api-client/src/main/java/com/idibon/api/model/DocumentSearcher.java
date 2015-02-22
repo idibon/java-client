@@ -280,13 +280,11 @@ public class DocumentSearcher implements Iterable<Document> {
                 try {
                     waitForNextBatch();
                     _offset = 0;
-                } catch (ExecutionException ex) {
+                } catch (ExecutionException|InterruptedException ex) {
                     if (ex.getCause() instanceof IOException)
                         throw new IterationException(_endpoint, ex.getCause());
                     else
                         throw new IterationException(_endpoint, ex);
-                } catch (InterruptedException ex) {
-                    throw new IterationException(_endpoint, ex);
                 }
             }
 

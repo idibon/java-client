@@ -102,13 +102,10 @@ public abstract class IdibonHash {
             if (element.getValueType() != ValueType.OBJECT)
                 throw new IOException("Invalid return object");
             result = (JsonObject)element;
-        } catch (InterruptedException ex) {
-            throw new IOException("Interrupted", ex);
-        } catch (ExecutionException ex) {
+        } catch (InterruptedException|ExecutionException ex) {
             if (ex.getCause() instanceof IOException)
                 throw (IOException)(ex.getCause());
-            else
-                throw new IOException("Wrapped IOException", ex);
+            throw new IOException("Wrapped", ex);
         } finally {
             /* if the load fails for any reason, clear out the cached Future
              * so that the load will be tried again. */
