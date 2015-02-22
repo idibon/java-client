@@ -24,7 +24,7 @@ public class ListDocuments
                    .withApiKey(args[0]));
 
         for (Document doc : client.getCollection(args[1]).documents())
-            System.out.printf("%s\n", doc.getJson().getAsJsonPrimitive("name"));
+            System.out.printf("%s\n", doc.getJson().getString("name"));
 
         client.shutdown(0);
     }

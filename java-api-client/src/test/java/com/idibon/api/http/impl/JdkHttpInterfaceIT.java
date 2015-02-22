@@ -9,7 +9,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.*;
-import com.google.gson.*;
+import javax.json.*;
 
 import com.idibon.api.http.HttpException;
 
@@ -53,10 +53,8 @@ public class JdkHttpInterfaceIT {
                 throw ex.getCause();
             }
         } catch (HttpException.Unauthorized ex) {
-            JsonElement jsonInfo = ex.getJsonErrorInfo();
-            assertThat(jsonInfo, is(instanceOf(JsonObject.class)));
-            String msg = ((JsonObject)jsonInfo).getAsJsonPrimitive("errors")
-                .getAsString();
+            JsonObject jsonInfo = ex.getJsonErrorInfo();
+            String msg = jsonInfo.getString("errors");
             assertThat(msg, is("improperly formatted API key"));
         }
     }
@@ -105,17 +103,15 @@ public class JdkHttpInterfaceIT {
 
         String chunkedJSON = "{\"a\":1}--BBB{\"a\":10}--BBB{\"a\":100}--BBB--";
         InputStream input = new ByteArrayInputStream(chunkedJSON.getBytes("UTF-8"));
-        JsonElement result = (JsonElement)method.invoke(intf, input, boundary);
+        JsonArray resultArray = (JsonArray)method.invoke(intf, input, boundary);
 
-        assertThat(result, is(instanceOf(JsonArray.class)));
-
-        JsonArray resultArray = (JsonArray)result;
         assertThat(resultArray.size(), is(3));
 
         for (int i = 0; i < resultArray.size(); i++) {
-            JsonElement e = resultArray.get(i);
+            JsonValue e = resultArray.get(i);
             assertThat(e, is(instanceOf(JsonObject.class)));
-            assertThat(((JsonObject)e).get("a").getAsLong(), is((long)Math.pow(10, i)));
+            assertThat(((JsonObject)e).getJsonNumber("a").longValue(),
+                       is((long)Math.pow(10, i)));
         }
     }
 

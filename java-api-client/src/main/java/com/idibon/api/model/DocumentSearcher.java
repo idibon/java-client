@@ -9,9 +9,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.NoSuchElementException;
 import java.util.Iterator;
 import java.util.Arrays;
+import javax.json.*;
 
 import com.idibon.api.http.*;
-import com.google.gson.*;
+import static com.idibon.api.model.Util.*;
+
 
 /**
  * Class for searching for Documents in a Collection by text, date,
@@ -199,35 +201,25 @@ public class DocumentSearcher implements Iterable<Document> {
         return _returns[ReturnData.DocumentContent.ordinal()];
     }
 
-    /**
-     * Simple helper method to convert an array of java strings into a GSON
-     * JsonElement that can be added as a key-value pair in a JsonObject
-     */
-    private static JsonArray toJsonArray(String[] javaArray) {
-        JsonArray result = new JsonArray();
-        for (String s : javaArray) result.add(new JsonPrimitive(s));
-        return result;
-    }
-
-    /// Escaped HTTP endpoint for the Collection that created this iterator
+    // Escaped HTTP endpoint for the Collection that created this iterator
     private final Collection _collection;
 
-    /// HTTP interface to use to perform the query
+    // HTTP interface to use to perform the query
     private final HttpInterface _httpIntf;
 
-    /// Return data configuration. Array of booleans with 1 entry for each datum
+    // Return data configuration. Array of booleans with 1 entry for each datum
     private final boolean[] _returns = new boolean[ReturnData.values().length];
 
-    /// Configured task annotation filters, if any.
+    // Configured task annotation filters, if any.
     private String[] _taskFilter;
 
-    /// Configured label annotation filters, if any.
+    // Configured label annotation filters, if any.
     private String[] _labelFilter;
 
-    /// Configured full-text search filter, if any.
+    // Configured full-text search filter, if any.
     private String _contentFilter;
 
-    /// Specific generator task for returned features
+    // Specific generator task for returned features
     private String _taskFeatureGen;
 
     /**
@@ -240,21 +232,23 @@ public class DocumentSearcher implements Iterable<Document> {
             /* cache the streaming mode, since the format of the returned
              * JSON elements will be different */
             _streaming = needsStreamingMode();
+
             if (_streaming) {
-                _query.addProperty("stream", true);
+                _query.add("stream", true);
                 _query.add("doc_args", requestStreamingReturnData());
-            } else if (needsFullContentMode()) {
-                _query.addProperty("full", true);
+            } else {
+                if (needsFullContentMode()) _query.add("full", true);
+                _docWrapper = JSON_BF.createObjectBuilder();
             }
 
             if (_contentFilter != null)
-                _query.addProperty("text", _contentFilter);
+                _query.add("text", _contentFilter);
 
             if (_taskFilter != null)
-                _query.add("task", toJsonArray(_taskFilter));
+                _query.add("task", toJson(_taskFilter));
 
             if (_labelFilter != null)
-                _query.add("label", toJsonArray(_labelFilter));
+                _query.add("label", toJson(_labelFilter));
 
             dispatchNext(null);
         }
@@ -283,19 +277,17 @@ public class DocumentSearcher implements Iterable<Document> {
             if (_currentBatch == null || _offset >= _currentBatch.size())
                 throw new NoSuchElementException();
 
-            JsonObject entry = _currentBatch.get(_offset).getAsJsonObject();
+            JsonObject obj = _currentBatch.getJsonObject(_offset);
             _offset += 1;
             if (_streaming) {
-                String name = entry.getAsJsonObject("document")
-                    .getAsJsonPrimitive("name").getAsString();
-                return new Document(name, _collection, _httpIntf).preload(entry);
+                String n = obj.getJsonObject("document").getString("name");
+                return new Document(n, _collection, _httpIntf).preload(obj);
             } else {
-                String name = entry.getAsJsonPrimitive("name").getAsString();
+                String name = obj.getString("name");
                 /* preload the returned Document object with whatever data
                  * was requested. */
-                JsonObject data = new JsonObject();
-                data.add("document", entry);
-                return new Document(name, _collection, _httpIntf).preload(data);
+                return new Document(name, _collection, _httpIntf)
+                    .preload(_docWrapper.add("document", obj).build());
             }
         }
 
@@ -318,30 +310,30 @@ public class DocumentSearcher implements Iterable<Document> {
          * Formats the requested return data items into a JSON hash to transmit
          * to the API. Used by constructor.
          */
-        private JsonObject requestStreamingReturnData() {
-            JsonObject args = new JsonObject();
-            args.addProperty("skip_null_fields", true); // never return nulls
+        private JsonObjectBuilder requestStreamingReturnData() {
+            JsonObjectBuilder args = JSON_BF.createObjectBuilder();
+            args.add("skip_null_fields", true); // never return nulls
             if (_returns[ReturnData.DocumentTokens.ordinal()])
-                args.addProperty("tokens", true);
+                args.add("tokens", true);
 
             if (_returns[ReturnData.AllAnnotations.ordinal()]) {
                 // nothing to do, this is the default behavior
             } else if (_returns[ReturnData.TaskAnnotations.ordinal()]) {
                 // provide all of the tasks that were included in the filter
-                args.add("task", toJsonArray(_taskFilter));
+                args.add("task", toJson(_taskFilter));
             } else {
                 // no annotations wanted, skip over them
-                args.addProperty("skip_annotations", true);
+                args.add("skip_annotations", true);
             }
 
             /* always use compact wire format for tokens, annotations and
              * features */
-            args.addProperty("format", "compact");
+            args.add("format", "compact");
 
             if (_returns[ReturnData.TaskFeatures.ordinal()]) {
                 String task = _taskFeatureGen != null ?
                     _taskFeatureGen : _taskFilter[0];
-                args.addProperty("features", task);
+                args.add("features", task);
             }
             return args;
         }
@@ -352,26 +344,28 @@ public class DocumentSearcher implements Iterable<Document> {
          */
         private void waitForNextBatch()
             throws ExecutionException, InterruptedException {
-            JsonElement cursor = null;
+            String cursor = null;
 
-            Future<JsonElement> async = _nextBatch;
+            Future<JsonValue> async = _nextBatch;
             _nextBatch = null;
 
             if (_streaming) {
-                _currentBatch = async.get().getAsJsonArray();
+                _currentBatch = (JsonArray)async.get();
                 if (_currentBatch.size() == 0)
                     return;
-                cursor = _currentBatch.get(_currentBatch.size() - 1)
-                    .getAsJsonObject().get("cursor");
+                cursor = _currentBatch
+                    .getJsonObject(_currentBatch.size() - 1)
+                    .getString("cursor", null);
             } else {
-                JsonObject rv = async.get().getAsJsonObject();
-                _currentBatch = rv.getAsJsonArray("documents");
-                cursor = rv.get("cursor");
+                JsonObject rv = (JsonObject)async.get();
+                _currentBatch = rv.getJsonArray("documents");
+                cursor = rv.getString("cursor", null);
             }
 
+            _nextStart += _currentBatch.size();
+
             // pre-load the next batch if one exists
-            if (cursor != null && cursor.isJsonPrimitive())
-                dispatchNext(cursor.getAsString());
+            if (cursor != null) dispatchNext(cursor);
         }
 
         /**
@@ -380,27 +374,32 @@ public class DocumentSearcher implements Iterable<Document> {
          */
         private void dispatchNext(String cursor) {
             if (cursor == null)
-                _query.remove("cursor");
+                _query.addNull("cursor");
             else
-                _query.addProperty("cursor", cursor);
+                _query.add("cursor", cursor);
+            _query.add("start", _nextStart);
             try {
-                _nextBatch = _httpIntf.httpGet(_endpoint, _query);
+                _nextBatch = _httpIntf.httpGet(_endpoint, _query.build());
             } catch (IOException ex) {
                 throw new IterationException(_endpoint, ex);
             }
         }
 
-        /// The endpoint used for document iteration
+        // The endpoint used for document iteration
         private final String _endpoint = _collection.getEndpoint() + "/*";
 
-        /// The search query used for this document iteration
-        private final JsonObject _query = new JsonObject();
+        // The search query used for this document iteration
+        private final JsonObjectBuilder _query = JSON_BF.createObjectBuilder();
 
-        /// If streaming mode is used
+        // Used in non-streaming mode to wrap elements in a document hash
+        private JsonObjectBuilder _docWrapper;
+
+        // If streaming mode is used
         private final boolean _streaming;
 
-        private Future<JsonElement> _nextBatch;
+        private Future<JsonValue> _nextBatch;
         private JsonArray _currentBatch;
         private int _offset;
+        private long _nextStart;
     }
 }

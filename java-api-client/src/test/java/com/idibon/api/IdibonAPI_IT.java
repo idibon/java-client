@@ -9,7 +9,7 @@ import java.util.Iterator;
 import com.idibon.api.http.impl.JdkHttpInterface;
 import com.idibon.api.model.*;
 
-import com.google.gson.*;
+import javax.json.*;
 
 import org.junit.*;
 
@@ -38,7 +38,7 @@ public class IdibonAPI_IT {
     @Test public void canLazyLoadCollection() throws Exception {
         Collection collection = _apiClient.getCollection("DemoOfTesla");
         JsonObject info = collection.getJson();
-        assertThat(info.getAsJsonPrimitive("name").getAsString(), equalTo("DemoOfTesla"));
+        assertThat(info.getString("name"), equalTo("DemoOfTesla"));
     }
 
     @Test public void canReadDocumentNames() throws Exception {
@@ -46,8 +46,8 @@ public class IdibonAPI_IT {
         Collection collection = _apiClient.getCollection("DemoOfTesla");
         int count = 0;
         for (Document d : collection.documents()) {
-            assertThat(d.getJson().getAsJsonPrimitive("content"), is(nullValue()));
-            assertThat(d.getJson().getAsJsonPrimitive("created_at"), is(not(nullValue())));
+            assertThat(d.getJson().getString("content", null), is(nullValue()));
+            assertThat(d.getJson().getString("created_at"), is(not(nullValue())));
             count++;
         }
         assertThat(count, is(75113));
@@ -60,14 +60,14 @@ public class IdibonAPI_IT {
             .returning(DocumentContent).iterator();
         JsonObject first = it.next().getJson();
 
-        assertThat(first.getAsJsonPrimitive("content"), is(instanceOf(JsonPrimitive.class)));
+        assertThat(first.getString("content", null), is(not(nullValue())));
     }
 
     @Test public void canStreamDocuments() throws Exception {
         Collection collection = _apiClient.getCollection("DemoOfTesla");
         int count = 0;
         for (Document d : collection.documents().returning(AllAnnotations)) {
-            JsonElement anns = d.getJson().get("annotations");
+            JsonValue anns = d.getJson().get("annotations");
             assertThat(anns, either(is(instanceOf(JsonArray.class))).or(is(nullValue())));
             count++;
             if (count >= 3000) break;
