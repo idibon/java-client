@@ -4,10 +4,11 @@
 package com.idibon.api;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.*;
 
 import com.idibon.api.http.impl.JdkHttpInterface;
 import com.idibon.api.model.*;
+import com.idibon.api.model.Collection;
 
 import javax.json.*;
 
@@ -73,6 +74,37 @@ public class IdibonAPI_IT {
             if (count >= 3000) break;
         }
         assertThat(count, is(3000));
+    }
+
+    @Test public void canLimitDocuments() throws Exception {
+        Collection collection = _apiClient.collection("DemoOfTesla");
+        for (int limit = 1; limit <= 5; limit++) {
+            List<Document> result = new ArrayList<Document>();
+            for (Document d : collection.documents().first(limit))
+                result.add(d);
+            assertThat(result, hasSize(limit));
+        }
+    }
+
+    @Test public void canSkipUnwantedResults() throws Exception {
+        Collection collection = _apiClient.collection("DemoOfTesla");
+        List<String> expectedNames = new ArrayList<String>();
+        Set<String> uniqueNames = new HashSet<String>();
+
+        for (Document d : collection.documents().first(5)) {
+            expectedNames.add(d.getName());
+            uniqueNames.add(d.getName());
+        }
+
+        assertThat(uniqueNames, hasSize(5));
+
+        List<String> names = new ArrayList<String>();
+        for (int i = 0; i < 5; i++) {
+            for (Document d : collection.documents().first().ignoring(i))
+                names.add(d.getName());
+        }
+
+        assertThat(names, equalTo(expectedNames));
     }
 
     @AfterClass public static void shutdown() {
