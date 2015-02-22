@@ -122,10 +122,25 @@ public class Document extends IdibonHash {
     }
 
     /**
+     * Forces cached JSON data to be reloaded from the server.
+     */
+    @Override public Document invalidate() {
+        super.invalidate();
+        _jsonCache = null;
+        return this;
+    }
+
+    /**
      * Returns the raw JSON data for this Document
      */
-    @Override public JsonObject getJson() throws IOException {
-        return super.getJson().getJsonObject("document");
+    public JsonObject getJson() throws IOException {
+        JsonObject result = super.getJson(null).getJsonObject("document");
+        /* this is racy, but the only negative outcome is that multiple
+         * threads may each instantiate a ConcurrentHashMap, and all but
+         * one of the instances will be GCd immediately. */
+        if (_jsonCache == null)
+            _jsonCache = new ConcurrentHashMap<Keys, Object>();
+        return result;
     }
 
     static Document instance(Collection parent, String name) {
@@ -148,6 +163,5 @@ public class Document extends IdibonHash {
 
     /* Simple cache of data loaded from the JsonObject, to avoid expensive
      * repetitive parsing. */
-    private final Map<Keys, Object> _jsonCache =
-        new ConcurrentHashMap<Keys, Object>();
+    private volatile Map<Keys, Object> _jsonCache;
 }

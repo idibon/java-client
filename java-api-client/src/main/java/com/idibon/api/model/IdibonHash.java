@@ -20,46 +20,12 @@ import javax.json.JsonValue.ValueType;
  * Base class for all data model objects that are loadable via direct
  * HTTP GET operations from the Idibon API.
  */
-public class IdibonHash {
+public abstract class IdibonHash {
 
     /**
-     * Returns the JSON hash for this object.
+     * Returns the raw JSON body representing this object.
      */
-    public JsonObject getJson() throws IOException {
-        Future<JsonValue> async = null;
-        synchronized(this) {
-            if (_jsonFuture == null)
-                _jsonFuture = _httpIntf.httpGet(_endpoint, null);
-            async = _jsonFuture;
-        }
-
-        JsonObject result = null;
-
-        try {
-            JsonValue element = async.get();
-            if (element.getValueType() != ValueType.OBJECT)
-                throw new IOException("Invalid return object");
-            result = (JsonObject)element;
-        } catch (InterruptedException ex) {
-            throw new IOException("Interrupted", ex);
-        } catch (ExecutionException ex) {
-            if (ex.getCause() instanceof IOException)
-                throw (IOException)(ex.getCause());
-            else
-                throw new IOException("Wrapped IOException", ex);
-        } finally {
-            /* if the load fails for any reason, clear out the cached Future
-             * so that the load will be tried again. */
-            if (result == null) {
-                synchronized(this) {
-                    if (_jsonFuture == async)
-                        _jsonFuture = null;
-                }
-            }
-        }
-
-        return result;
-    }
+    public abstract JsonObject getJson() throws IOException;
 
     /**
      * Returns the configured endpoint for this object.
@@ -100,6 +66,61 @@ public class IdibonHash {
 
         IdibonHash h = (IdibonHash)obj;
         return _endpoint.equals(h._endpoint) && _httpIntf == h._httpIntf;
+    }
+
+    /**
+     * Invalidates all cached data in this object, causing data to be reloaded
+     * from the server.
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends IdibonHash> T invalidate() {
+        synchronized(this) {
+            _jsonFuture = null;
+        }
+        return (T)this;
+    }
+
+    /**
+     * Returns the JSON hash for this object, with an optional body query
+     * parameter.
+     *
+     * @param body Body to include with HTTP query. May be null.
+     */
+    protected JsonObject getJson(JsonObject body) throws IOException {
+        Future<JsonValue> async = null;
+
+        synchronized(this) {
+            if (_jsonFuture == null)
+                _jsonFuture = _httpIntf.httpGet(_endpoint, body);
+            async = _jsonFuture;
+        }
+
+        JsonObject result = null;
+
+        try {
+            JsonValue element = async.get();
+            if (element.getValueType() != ValueType.OBJECT)
+                throw new IOException("Invalid return object");
+            result = (JsonObject)element;
+        } catch (InterruptedException ex) {
+            throw new IOException("Interrupted", ex);
+        } catch (ExecutionException ex) {
+            if (ex.getCause() instanceof IOException)
+                throw (IOException)(ex.getCause());
+            else
+                throw new IOException("Wrapped IOException", ex);
+        } finally {
+            /* if the load fails for any reason, clear out the cached Future
+             * so that the load will be tried again. */
+            if (result == null) {
+                synchronized(this) {
+                    if (_jsonFuture == async)
+                        _jsonFuture = null;
+                }
+            }
+        }
+
+        return result;
     }
 
     /**
