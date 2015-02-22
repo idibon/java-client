@@ -128,31 +128,12 @@ public class DocumentSearcher implements Iterable<Document> {
     }
 
     /**
-     * Defines a task filter that searches only for documents that have
-     * annotations for the specified task(s). Use an empty list to return
-     * all documents, even those that have no annotations.
+     * Search for documents with annotations matching the annotation query.
      *
-     * Disables a label filter, if one was previously assigned.
-     *
-     * @param tasks List of task names
+     * @param query Defines the annotation search terms.
      */
-    public DocumentSearcher annotatedForTasks(String... tasks) {
-        _taskFilter = (tasks.length == 0) ?
-            null : Arrays.copyOf(tasks, tasks.length);
-        _labelFilter = null;
-        return this;
-    }
-
-    /**
-     * Defines a search filter that will return documents that have annotations
-     * for the specified label(s) in the named task.
-     */
-    public DocumentSearcher annotatedForLabels(String task, String... labels) {
-        if (labels.length == 0) unsupported("Empty labels array");
-        if (task == null) throw new NullPointerException("task");
-
-        _taskFilter = new String[] { task };
-        _labelFilter = Arrays.copyOf(labels, labels.length);
+    public DocumentSearcher annotated(DocumentAnnotationQuery query) {
+        _annotationQuery = query.clone();
         return this;
     }
 
@@ -211,16 +192,16 @@ public class DocumentSearcher implements Iterable<Document> {
      */
     private void validate() {
         if (_returns[ReturnData.TaskAnnotations.ordinal()] &&
-                _taskFilter == null &&
+                _annotationQuery == null &&
                 !_returns[ReturnData.AllAnnotations.ordinal()]) {
-            unsupported("Task list required to return TaskAnnotations");
+            unsupported("Annotation query needed to return TaskAnnotations");
         }
 
         if (needsStreamingMode() && _contentFilter != null)
             unsupported("Full-text search incompatible with return data");
 
         if (_returns[ReturnData.TaskFeatures.ordinal()]) {
-            if (_taskFilter == null && _taskFeatureGen == null)
+            if (_annotationQuery == null && _taskFeatureGen == null)
                 unsupported("A task must be provided to return TaskFeatures");
         }
     }
@@ -242,11 +223,8 @@ public class DocumentSearcher implements Iterable<Document> {
     // Return data configuration. Array of booleans with 1 entry for each datum
     private final boolean[] _returns = new boolean[ReturnData.values().length];
 
-    // Configured task annotation filters, if any.
-    private String[] _taskFilter;
-
-    // Configured label annotation filters, if any.
-    private String[] _labelFilter;
+    // Configured annotation filters, if any.
+    private DocumentAnnotationQuery _annotationQuery;
 
     // Configured full-text search filter, if any.
     private String _contentFilter;
@@ -273,22 +251,20 @@ public class DocumentSearcher implements Iterable<Document> {
             _limitRemain = _limitCount;
             _nextStart = _ignoreCount;
 
-            if (_streaming) {
-                _query.add("stream", true);
-                _query.add("doc_args", requestStreamingReturnData());
-            } else {
-                if (needsFullContentMode()) _query.add("full", true);
-                _docWrapper = JSON_BF.createObjectBuilder();
-            }
+            String[] queryTasks = null;
+            if (_annotationQuery != null)
+                queryTasks = _annotationQuery.serializeTo(_query).getTasks();
 
             if (_contentFilter != null)
                 _query.add("text", _contentFilter);
 
-            if (_taskFilter != null)
-                _query.add("task", toJson(_taskFilter));
-
-            if (_labelFilter != null)
-                _query.add("label", toJson(_labelFilter));
+            if (_streaming) {
+                _query.add("stream", true);
+                _query.add("doc_args", requestStreamingReturnData(queryTasks));
+            } else {
+                if (needsFullContentMode()) _query.add("full", true);
+                _docWrapper = JSON_BF.createObjectBuilder();
+            }
 
             dispatchNext(null);
         }
@@ -350,7 +326,7 @@ public class DocumentSearcher implements Iterable<Document> {
          * Formats the requested return data items into a JSON hash to transmit
          * to the API. Used by constructor.
          */
-        private JsonObjectBuilder requestStreamingReturnData() {
+        private JsonObjectBuilder requestStreamingReturnData(String[] tasks) {
             JsonObjectBuilder args = JSON_BF.createObjectBuilder();
             args.add("skip_null_fields", true); // never return nulls
             if (_returns[ReturnData.DocumentTokens.ordinal()])
@@ -360,7 +336,7 @@ public class DocumentSearcher implements Iterable<Document> {
                 // nothing to do, this is the default behavior
             } else if (_returns[ReturnData.TaskAnnotations.ordinal()]) {
                 // provide all of the tasks that were included in the filter
-                args.add("task", toJson(_taskFilter));
+                args.add("task", toJson(tasks));
             } else {
                 // no annotations wanted, skip over them
                 args.add("skip_annotations", true);
@@ -371,9 +347,8 @@ public class DocumentSearcher implements Iterable<Document> {
             args.add("format", "compact");
 
             if (_returns[ReturnData.TaskFeatures.ordinal()]) {
-                String task = _taskFeatureGen != null ?
-                    _taskFeatureGen : _taskFilter[0];
-                args.add("features", task);
+                String t = _taskFeatureGen != null ? _taskFeatureGen : tasks[0];
+                args.add("features", t);
             }
             return args;
         }
@@ -422,7 +397,7 @@ public class DocumentSearcher implements Iterable<Document> {
             _query.add("start", _nextStart);
             /* restrict the results to the lesser of the server max (1000) and
              * the desired number of results */
-            _query.add("limit", Math.min(1000L, _limitRemain));
+            _query.add("count", Math.min(1000L, _limitRemain));
             try {
                 _nextBatch = _httpIntf.httpGet(_endpoint, _query.build());
             } catch (IOException ex) {
