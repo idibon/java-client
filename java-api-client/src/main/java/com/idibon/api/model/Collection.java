@@ -23,22 +23,33 @@ public class Collection extends IdibonHash {
     }
 
     /**
-     * Constructor for Collections
-     *
-     * @param name The name of the collection
-     * @param httpIntf The HTTP interface to use to access the Collection
-     */
-    public Collection(String name, HttpInterface httpIntf) {
-        super("/" + percentEncode(name), httpIntf);
-        _name = name;
-    }
-
-    /**
      * Returns a DocumentSearcher instance to search for specific documents in
      * this collection.
      */
     public DocumentSearcher documents() {
         return new DocumentSearcher(this, _httpIntf);
+    }
+
+    /**
+     * Returns a Document instnace for the provided JSON document hash
+     */
+    public Document document(JsonObject docJson) {
+        return Document.instance(this, docJson);
+    }
+
+    /**
+     * Returns a Collection instance for the provided collection name
+     *
+     * @param httpIntf The HTTP interface to use to access the Collection
+     * @param name The name of the collection
+     */
+    public static Collection instance(HttpInterface httpIntf, String name) {
+        return new Collection(httpIntf, name);
+    }
+
+    private Collection(HttpInterface httpIntf, String name) {
+        super("/" + percentEncode(name), httpIntf);
+        _name = name;
     }
 
     /// The name of the collection (un-escaped)

@@ -128,7 +128,16 @@ public class Document extends IdibonHash {
         return super.getJson().getJsonObject("document");
     }
 
-    public Document(String name, Collection parent, HttpInterface httpIntf) {
+    static Document instance(Collection parent, String name) {
+        return new Document(name, parent, parent.getInterface());
+    }
+
+    static Document instance(Collection parent, JsonObject obj) {
+        String name = obj.getJsonObject("document").getString("name");
+        return instance(parent, name).preload(obj);
+    }
+
+    private Document(String name, Collection parent, HttpInterface httpIntf) {
         super(parent.getEndpoint() + "/" + percentEncode(name), httpIntf);
         _name = name;
         _parent = parent;

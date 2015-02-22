@@ -36,14 +36,14 @@ public class IdibonAPI_IT {
     }
 
     @Test public void canLazyLoadCollection() throws Exception {
-        Collection collection = _apiClient.getCollection("DemoOfTesla");
+        Collection collection = _apiClient.collection("DemoOfTesla");
         JsonObject info = collection.getJson();
         assertThat(info.getString("name"), equalTo("DemoOfTesla"));
     }
 
     @Test public void canReadDocumentNames() throws Exception {
         // tests the non-streaming, name+date-only mode
-        Collection collection = _apiClient.getCollection("DemoOfTesla");
+        Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
         for (Document d : collection.documents()) {
             assertThat(d.getJson().getString("content", null), is(nullValue()));
@@ -54,7 +54,7 @@ public class IdibonAPI_IT {
     }
 
     @Test public void canReadDocumentContent() throws Exception {
-        Collection collection = _apiClient.getCollection("DemoOfTesla");
+        Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
         Iterator<Document> it = collection.documents()
             .returning(DocumentContent).iterator();
@@ -64,7 +64,7 @@ public class IdibonAPI_IT {
     }
 
     @Test public void canStreamDocuments() throws Exception {
-        Collection collection = _apiClient.getCollection("DemoOfTesla");
+        Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
         for (Document d : collection.documents().returning(AllAnnotations)) {
             JsonValue anns = d.getJson().get("annotations");

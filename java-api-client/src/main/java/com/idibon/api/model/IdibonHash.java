@@ -69,6 +69,13 @@ public class IdibonHash {
     }
 
     /**
+     * Returns the HTTP interface used to interact with this object.
+     */
+    public HttpInterface getInterface() {
+        return _httpIntf;
+    }
+
+    /**
      * Returns a percent-encoded string suitable for use in URL paths.
      *
      * @param str String to encode

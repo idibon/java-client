@@ -321,14 +321,13 @@ public class DocumentSearcher implements Iterable<Document> {
             _offset += 1;
             if (_streaming) {
                 String n = obj.getJsonObject("document").getString("name");
-                return new Document(n, _collection, _httpIntf)
-                    .preload(expandDocument(obj));
+                return _collection.document(expandDocument(obj));
             } else {
                 String name = obj.getString("name");
                 /* preload the returned Document object with whatever data
                  * was requested. */
-                return new Document(name, _collection, _httpIntf)
-                    .preload(_docWrapper.add("document", obj).build());
+                return _collection.document(
+                         _docWrapper.add("document", obj).build());
             }
         }
 
