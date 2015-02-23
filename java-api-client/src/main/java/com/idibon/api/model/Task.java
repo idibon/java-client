@@ -103,6 +103,33 @@ public class Task extends IdibonHash {
     }
 
     /**
+     * Calls the prediction API for all of the provided documents for this
+     * class.
+     *
+     * @param items The items that should be predicted
+     * @param predictClass The class of prediction results expected, e.g.,
+     *        DocumentPrediction.class for document-scope tasks,
+     *        SpanPrediction.class for span-scope tasks.
+     */
+    public <T extends Prediction> Iterable<T> predictions(
+            Iterable<? extends Predictable> items, Class<T> predictClass) {
+        return new PredictionIterable<T>(predictClass, this, items);
+    }
+
+    /**
+     * Calls the prediction API to get document classification results for
+     * this task. This methos is the same as calling
+     * Task#predictions(items, DocumentPrediction.class)
+     *
+     * @param items Items to predict
+     */
+    public Iterable<DocumentPrediction> classifications(
+            Iterable<? extends Predictable> items) {
+        return new PredictionIterable<DocumentPrediction>(
+          DocumentPrediction.class, this, items);
+    }
+
+    /**
      * Returns the task JSON
      */
     public JsonObject getJson() throws IOException {

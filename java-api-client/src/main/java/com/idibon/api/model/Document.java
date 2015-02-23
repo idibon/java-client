@@ -15,7 +15,7 @@ import static com.idibon.api.model.Util.*;
 /**
  * A Document is the basic unit of content in a Collection
  */
-public class Document extends IdibonHash {
+public class Document extends IdibonHash implements Predictable {
 
     /**
      * Keys in the JSON hash. Some keys may not be present, depending
@@ -119,6 +119,13 @@ public class Document extends IdibonHash {
         }
 
         return date;
+    }
+
+    /**
+     * Returns a body with {"document":"name"}
+     */
+    public JsonObject createPredictionRequest() {
+        return JSON_BF.createObjectBuilder().add("document", getName()).build();
     }
 
     /**
