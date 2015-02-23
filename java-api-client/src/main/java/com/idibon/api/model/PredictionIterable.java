@@ -50,9 +50,9 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
      */
     private class Iter implements Iterator<T> {
         private Iter() {
-            advance(null);
             _itemIt = _items.iterator();
             _queue = new LinkedList<>();
+            advance(null);
         }
 
         public boolean hasNext() {

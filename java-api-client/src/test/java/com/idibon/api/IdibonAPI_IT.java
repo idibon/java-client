@@ -107,6 +107,21 @@ public class IdibonAPI_IT {
         assertThat(names, equalTo(expectedNames));
     }
 
+    @Test public void canMakePredictions() throws Exception {
+        Collection c = _apiClient.collection("general_sentiment_5pt_scale");
+        Task sentiment = c.task("Sentiment");
+        List<String> predicted = new ArrayList<String>();
+        for (DocumentPrediction p :
+                 sentiment.classifications(c.documents().first(100))) {
+            predicted.add(p.getPredictableAs(Document.class).getName());
+        }
+        List<String> expected = new ArrayList<String>();
+        for (Document d : c.documents().first(100))
+            expected.add(d.getName());
+
+        assertThat(predicted, is(expected));
+    }
+
     @AfterClass public static void shutdown() {
         _apiClient.shutdown(0);
     }
