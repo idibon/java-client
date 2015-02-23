@@ -50,6 +50,28 @@ public class DocumentSearcher implements Iterable<Document> {
     }
 
     /**
+     * Result sort order options.
+     */
+    public enum Sort {
+        /**
+         * Sort by document created_at date (<i>Default</i>)
+         */
+        created_at,
+        /**
+         * Sort by the document names
+         */
+        name,
+        /**
+         * Sort by document updated_at date
+         */
+        updated_at,
+        /**
+         * Sort by document UUID
+         */
+        uuid;
+    }
+
+    /**
      * Configure the search iterator to include additional return data.
      *
      * By default, only the Document name will be returned from the
@@ -134,6 +156,32 @@ public class DocumentSearcher implements Iterable<Document> {
      */
     public DocumentSearcher annotated(DocumentAnnotationQuery query) {
         _annotationQuery = query.clone();
+        return this;
+    }
+
+    /**
+     * Configure the search result ordering
+     *
+     * @param sortOption The order that results should be returned.
+     */
+    public DocumentSearcher sortedBy(Sort sortOption) {
+        _sortOption = sortOption;
+        return this;
+    }
+
+    /**
+     * Returns results sorted in ascending order.
+     */
+    public DocumentSearcher ascending() {
+        _sortAscending = true;
+        return this;
+    }
+
+    /**
+     * Returns results sorted in descending order.
+     */
+    public DocumentSearcher descending() {
+        _sortAscending = false;
         return this;
     }
 
@@ -238,6 +286,10 @@ public class DocumentSearcher implements Iterable<Document> {
     // Number of matching items to ignore before returning the first result.
     private long _ignoreCount = 0;
 
+    // Result sort ordering
+    private Sort _sortOption = Sort.created_at;
+    private boolean _sortAscending = true;
+
     /**
      * Inner class responsible for paging through HTTP results and converting
      * the results into Document instances.
@@ -265,6 +317,9 @@ public class DocumentSearcher implements Iterable<Document> {
                 if (needsFullContentMode()) _query.add("full", true);
                 _docWrapper = JSON_BF.createObjectBuilder();
             }
+
+            _query.add("sort", _sortOption.name())
+                .add("order", _sortAscending ? "asc" : "desc");
 
             dispatchNext(null);
         }
