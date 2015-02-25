@@ -349,10 +349,8 @@ public class DocumentSearcher implements Iterable<Document> {
             JsonObject obj = _currentBatch.getJsonObject(_offset);
             _offset += 1;
             if (_streaming) {
-                String n = obj.getJsonObject("document").getString("name");
                 return _collection.document(expandDocument(obj));
             } else {
-                String name = obj.getString("name");
                 /* preload the returned Document object with whatever data
                  * was requested. */
                 return _collection.document(

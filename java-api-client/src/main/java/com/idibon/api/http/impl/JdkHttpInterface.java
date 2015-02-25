@@ -158,6 +158,8 @@ public class JdkHttpInterface implements HttpInterface {
             if (boundaryIndex == -1)
                 throw new IOException("Chunk boundary missing");
 
+            /* strip off the "boundary=" prefix from the header, leaving just
+             * the random boundary marker text. */
             String boundary = contentType.substring(boundaryIndex + 9);
             return handleChunkedInput(is, boundary);
         }
@@ -293,25 +295,25 @@ public class JdkHttpInterface implements HttpInterface {
             int v = ((int)utf8[i] & 0xff) << 16;
             v |= ((int)utf8[i + 1] & 0xff) << 8;
             v |= ((int)utf8[i + 2] & 0xff);
-            base64 += BASE64_TAB.charAt((v >> 18) & 0x3f);
-            base64 += BASE64_TAB.charAt((v >> 12) & 0x3f);
-            base64 += BASE64_TAB.charAt((v >> 6) & 0x3f);
-            base64 += BASE64_TAB.charAt(v & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 18) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 12) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 6) & 0x3f);
+            base64 += BASE64_TABLE.charAt(v & 0x3f);
         }
         switch (utf8.length % 3) {
         case 1: {
             int v = ((int)utf8[utf8.length - 1] & 0xff);
-            base64 += BASE64_TAB.charAt((v >> 2) & 0x3f);
-            base64 += BASE64_TAB.charAt((v << 4) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 2) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v << 4) & 0x3f);
             base64 += "==";
             break;
         }
         case 2: {
             int v = ((int)utf8[utf8.length - 2] & 0xff) << 8;
             v |= ((int)utf8[utf8.length - 1] & 0xff);
-            base64 += BASE64_TAB.charAt((v >> 10) & 0x3f);
-            base64 += BASE64_TAB.charAt((v >> 4) & 0x3f);
-            base64 += BASE64_TAB.charAt((v << 2) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 10) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 4) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v << 2) & 0x3f);
             base64 += "=";
             break;
         }
@@ -339,7 +341,7 @@ public class JdkHttpInterface implements HttpInterface {
                                new LinkedBlockingQueue<Runnable>());
 
     /// Base-64 encoding table
-    private static final String BASE64_TAB =
+    private static final String BASE64_TABLE =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     private static final JsonWriterFactory JSON_WF = Json.createWriterFactory(null);
@@ -377,7 +379,8 @@ public class JdkHttpInterface implements HttpInterface {
              * which forces every method except PUT or POST to become a POST
              * method if an entity is included in the request. Detect this
              * case and use X-HTTP-Method-Override to work-around this
-             * limitation */
+             * limitation, since the Idibon API expects bodies for some GET
+             * and DELETE operations */
             if (_method.equals("PUT") || _method.equals("POST"))
                 conn.setRequestMethod(_method);
             else

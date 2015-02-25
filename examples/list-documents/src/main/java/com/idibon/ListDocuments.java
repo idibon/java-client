@@ -20,7 +20,7 @@ public class ListDocuments
     public static void main(String[] args) throws Exception {
 
         if (args.length < 2) {
-            System.out.printf("Usage: %s API_KEY COLLECTION TASKS...\n",
+            System.out.printf("Usage: %s API_KEY COLLECTION [TASK]\n",
                               ListDocuments.class.getSimpleName());
             return;
         }
@@ -33,8 +33,9 @@ public class ListDocuments
         DocumentSearcher documents = client.collection(args[1]).documents();
 
         if (args.length > 2) {
-            String[] annotatedTasks = Arrays.copyOfRange(args, 2, args.length);
-            documents = documents.annotated(forTasks(annotatedTasks));
+            /* this can search for any number of tasks, but the example
+             * is just the one task on the command line */
+            documents = documents.annotated(forTasks(args[2]));
         }
 
         long count = 0;
