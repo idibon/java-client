@@ -3,8 +3,7 @@ java-client
 
 Idibon API Java SDK
 
-Requires a JDK (JDK 6 should work, but only tested on JDK 7) and
-[Maven 3](http://maven.apache.org/download.cgi).
+Requires JDK 7 or newer, and [Maven 3](http://maven.apache.org/download.cgi).
 
 The SDK is structured as a multimodule Maven project, with the core
 API client as

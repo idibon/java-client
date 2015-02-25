@@ -9,9 +9,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.NoSuchElementException;
 import java.util.Iterator;
 import java.util.Arrays;
+import javax.json.*;
 
 import com.idibon.api.http.*;
-import com.google.gson.*;
+import static com.idibon.api.model.Util.*;
+
 
 /**
  * Class for searching for Documents in a Collection by text, date,
@@ -48,6 +50,28 @@ public class DocumentSearcher implements Iterable<Document> {
     }
 
     /**
+     * Result sort order options.
+     */
+    public enum Sort {
+        /**
+         * Sort by document created_at date (<i>Default</i>)
+         */
+        created_at,
+        /**
+         * Sort by the document names
+         */
+        name,
+        /**
+         * Sort by document updated_at date
+         */
+        updated_at,
+        /**
+         * Sort by document UUID
+         */
+        uuid;
+    }
+
+    /**
      * Configure the search iterator to include additional return data.
      *
      * By default, only the Document name will be returned from the
@@ -80,6 +104,38 @@ public class DocumentSearcher implements Iterable<Document> {
     }
 
     /**
+     * Limits the search to just the first <tt>count</tt> results.
+     *
+     * @param count The maximum number of search results to return.
+     */
+    public DocumentSearcher first(long count) {
+        if (count <= 0)
+            throw new IllegalArgumentException("count must be positive");
+        _limitCount = count;
+        return this;
+    }
+
+    /**
+     * Limits the search to the first result. Shorthand for <tt>first(1)</tt>
+     */
+    public DocumentSearcher first() {
+        return first(1);
+    }
+
+    /**
+     * Ignores the first <tt>count</tt> search results.
+     *
+     * @param count The number of matching documents to skip before returning
+     *              the first result.
+     */
+    public DocumentSearcher ignoring(long count) {
+        if (count < 0)
+            throw new IllegalArgumentException("count may not be negative");
+        _ignoreCount = count;
+        return this;
+    }
+
+    /**
      * Searches for documents that include the provided text string in
      * the content field.
      *
@@ -94,31 +150,38 @@ public class DocumentSearcher implements Iterable<Document> {
     }
 
     /**
-     * Defines a task filter that searches only for documents that have
-     * annotations for the specified task(s). Use an empty list to return
-     * all documents, even those that have no annotations.
+     * Search for documents with annotations matching the annotation query.
      *
-     * Disables a label filter, if one was previously assigned.
-     *
-     * @param tasks List of task names
+     * @param query Defines the annotation search terms.
      */
-    public DocumentSearcher annotatedForTasks(String... tasks) {
-        _taskFilter = (tasks.length == 0) ?
-            null : Arrays.copyOf(tasks, tasks.length);
-        _labelFilter = null;
+    public DocumentSearcher annotated(DocumentAnnotationQuery query) {
+        _annotationQuery = query.clone();
         return this;
     }
 
     /**
-     * Defines a search filter that will return documents that have annotations
-     * for the specified label(s) in the named task.
+     * Configure the search result ordering
+     *
+     * @param sortOption The order that results should be returned.
      */
-    public DocumentSearcher annotatedForLabels(String task, String... labels) {
-        if (labels.length == 0) unsupported("Empty labels array");
-        if (task == null) throw new NullPointerException("task");
+    public DocumentSearcher sortedBy(Sort sortOption) {
+        _sortOption = sortOption;
+        return this;
+    }
 
-        _taskFilter = new String[] { task };
-        _labelFilter = Arrays.copyOf(labels, labels.length);
+    /**
+     * Returns results sorted in ascending order.
+     */
+    public DocumentSearcher ascending() {
+        _sortAscending = true;
+        return this;
+    }
+
+    /**
+     * Returns results sorted in descending order.
+     */
+    public DocumentSearcher descending() {
+        _sortAscending = false;
         return this;
     }
 
@@ -177,16 +240,16 @@ public class DocumentSearcher implements Iterable<Document> {
      */
     private void validate() {
         if (_returns[ReturnData.TaskAnnotations.ordinal()] &&
-                _taskFilter == null &&
+                _annotationQuery == null &&
                 !_returns[ReturnData.AllAnnotations.ordinal()]) {
-            unsupported("Task list required to return TaskAnnotations");
+            unsupported("Annotation query needed to return TaskAnnotations");
         }
 
         if (needsStreamingMode() && _contentFilter != null)
             unsupported("Full-text search incompatible with return data");
 
         if (_returns[ReturnData.TaskFeatures.ordinal()]) {
-            if (_taskFilter == null && _taskFeatureGen == null)
+            if (_annotationQuery == null && _taskFeatureGen == null)
                 unsupported("A task must be provided to return TaskFeatures");
         }
     }
@@ -199,36 +262,33 @@ public class DocumentSearcher implements Iterable<Document> {
         return _returns[ReturnData.DocumentContent.ordinal()];
     }
 
-    /**
-     * Simple helper method to convert an array of java strings into a GSON
-     * JsonElement that can be added as a key-value pair in a JsonObject
-     */
-    private static JsonArray toJsonArray(String[] javaArray) {
-        JsonArray result = new JsonArray();
-        for (String s : javaArray) result.add(new JsonPrimitive(s));
-        return result;
-    }
-
-    /// Escaped HTTP endpoint for the Collection that created this iterator
+    // Escaped HTTP endpoint for the Collection that created this iterator
     private final Collection _collection;
 
-    /// HTTP interface to use to perform the query
+    // HTTP interface to use to perform the query
     private final HttpInterface _httpIntf;
 
-    /// Return data configuration. Array of booleans with 1 entry for each datum
+    // Return data configuration. Array of booleans with 1 entry for each datum
     private final boolean[] _returns = new boolean[ReturnData.values().length];
 
-    /// Configured task annotation filters, if any.
-    private String[] _taskFilter;
+    // Configured annotation filters, if any.
+    private DocumentAnnotationQuery _annotationQuery;
 
-    /// Configured label annotation filters, if any.
-    private String[] _labelFilter;
-
-    /// Configured full-text search filter, if any.
+    // Configured full-text search filter, if any.
     private String _contentFilter;
 
-    /// Specific generator task for returned features
+    // Specific generator task for returned features
     private String _taskFeatureGen;
+
+    // Limit number of search results
+    private long _limitCount = Long.MAX_VALUE;
+
+    // Number of matching items to ignore before returning the first result.
+    private long _ignoreCount = 0;
+
+    // Result sort ordering
+    private Sort _sortOption = Sort.created_at;
+    private boolean _sortAscending = true;
 
     /**
      * Inner class responsible for paging through HTTP results and converting
@@ -240,21 +300,26 @@ public class DocumentSearcher implements Iterable<Document> {
             /* cache the streaming mode, since the format of the returned
              * JSON elements will be different */
             _streaming = needsStreamingMode();
-            if (_streaming) {
-                _query.addProperty("stream", true);
-                _query.add("doc_args", requestStreamingReturnData());
-            } else if (needsFullContentMode()) {
-                _query.addProperty("full", true);
-            }
+            _limitRemain = _limitCount;
+            _nextStart = _ignoreCount;
+
+            String[] queryTasks = null;
+            if (_annotationQuery != null)
+                queryTasks = _annotationQuery.serializeTo(_query).getTasks();
 
             if (_contentFilter != null)
-                _query.addProperty("text", _contentFilter);
+                _query.add("text", _contentFilter);
 
-            if (_taskFilter != null)
-                _query.add("task", toJsonArray(_taskFilter));
+            if (_streaming) {
+                _query.add("stream", true);
+                _query.add("doc_args", requestStreamingReturnData(queryTasks));
+            } else {
+                if (needsFullContentMode()) _query.add("full", true);
+                _docWrapper = JSON_BF.createObjectBuilder();
+            }
 
-            if (_labelFilter != null)
-                _query.add("label", toJsonArray(_labelFilter));
+            _query.add("sort", _sortOption.name())
+                .add("order", _sortAscending ? "asc" : "desc");
 
             dispatchNext(null);
         }
@@ -270,32 +335,26 @@ public class DocumentSearcher implements Iterable<Document> {
                 try {
                     waitForNextBatch();
                     _offset = 0;
-                } catch (ExecutionException ex) {
+                } catch (ExecutionException|InterruptedException ex) {
                     if (ex.getCause() instanceof IOException)
                         throw new IterationException(_endpoint, ex.getCause());
                     else
                         throw new IterationException(_endpoint, ex);
-                } catch (InterruptedException ex) {
-                    throw new IterationException(_endpoint, ex);
                 }
             }
 
             if (_currentBatch == null || _offset >= _currentBatch.size())
                 throw new NoSuchElementException();
 
-            JsonObject entry = _currentBatch.get(_offset).getAsJsonObject();
+            JsonObject obj = _currentBatch.getJsonObject(_offset);
             _offset += 1;
             if (_streaming) {
-                String name = entry.getAsJsonObject("document")
-                    .getAsJsonPrimitive("name").getAsString();
-                return new Document(name, _collection, _httpIntf).preload(entry);
+                return _collection.document(expandDocument(obj));
             } else {
-                String name = entry.getAsJsonPrimitive("name").getAsString();
                 /* preload the returned Document object with whatever data
                  * was requested. */
-                JsonObject data = new JsonObject();
-                data.add("document", entry);
-                return new Document(name, _collection, _httpIntf).preload(data);
+                return _collection.document(
+                         _docWrapper.add("document", obj).build());
             }
         }
 
@@ -318,30 +377,29 @@ public class DocumentSearcher implements Iterable<Document> {
          * Formats the requested return data items into a JSON hash to transmit
          * to the API. Used by constructor.
          */
-        private JsonObject requestStreamingReturnData() {
-            JsonObject args = new JsonObject();
-            args.addProperty("skip_null_fields", true); // never return nulls
+        private JsonObjectBuilder requestStreamingReturnData(String[] tasks) {
+            JsonObjectBuilder args = JSON_BF.createObjectBuilder();
+            args.add("skip_null_fields", true); // never return nulls
             if (_returns[ReturnData.DocumentTokens.ordinal()])
-                args.addProperty("tokens", true);
+                args.add("tokens", true);
 
             if (_returns[ReturnData.AllAnnotations.ordinal()]) {
                 // nothing to do, this is the default behavior
             } else if (_returns[ReturnData.TaskAnnotations.ordinal()]) {
                 // provide all of the tasks that were included in the filter
-                args.add("task", toJsonArray(_taskFilter));
+                args.add("task", toJson(tasks));
             } else {
                 // no annotations wanted, skip over them
-                args.addProperty("skip_annotations", true);
+                args.add("skip_annotations", true);
             }
 
             /* always use compact wire format for tokens, annotations and
              * features */
-            args.addProperty("format", "compact");
+            args.add("format", "compact");
 
             if (_returns[ReturnData.TaskFeatures.ordinal()]) {
-                String task = _taskFeatureGen != null ?
-                    _taskFeatureGen : _taskFilter[0];
-                args.addProperty("features", task);
+                String t = _taskFeatureGen != null ? _taskFeatureGen : tasks[0];
+                args.add("features", t);
             }
             return args;
         }
@@ -352,26 +410,29 @@ public class DocumentSearcher implements Iterable<Document> {
          */
         private void waitForNextBatch()
             throws ExecutionException, InterruptedException {
-            JsonElement cursor = null;
+            String cursor = null;
 
-            Future<JsonElement> async = _nextBatch;
+            Future<JsonValue> async = _nextBatch;
             _nextBatch = null;
 
             if (_streaming) {
-                _currentBatch = async.get().getAsJsonArray();
+                _currentBatch = (JsonArray)async.get();
                 if (_currentBatch.size() == 0)
                     return;
-                cursor = _currentBatch.get(_currentBatch.size() - 1)
-                    .getAsJsonObject().get("cursor");
+                cursor = _currentBatch
+                    .getJsonObject(_currentBatch.size() - 1)
+                    .getString("cursor", null);
             } else {
-                JsonObject rv = async.get().getAsJsonObject();
-                _currentBatch = rv.getAsJsonArray("documents");
-                cursor = rv.get("cursor");
+                JsonObject rv = (JsonObject)async.get();
+                _currentBatch = rv.getJsonArray("documents");
+                cursor = rv.getString("cursor", null);
             }
 
+            _nextStart += _currentBatch.size();
+            _limitRemain -= _currentBatch.size();
+
             // pre-load the next batch if one exists
-            if (cursor != null && cursor.isJsonPrimitive())
-                dispatchNext(cursor.getAsString());
+            if (cursor != null && _limitRemain > 0) dispatchNext(cursor);
         }
 
         /**
@@ -380,27 +441,37 @@ public class DocumentSearcher implements Iterable<Document> {
          */
         private void dispatchNext(String cursor) {
             if (cursor == null)
-                _query.remove("cursor");
+                _query.addNull("cursor");
             else
-                _query.addProperty("cursor", cursor);
+                _query.add("cursor", cursor);
+            // to prevent infinite loops on lost cursors, always include start
+            _query.add("start", _nextStart);
+            /* restrict the results to the lesser of the server max (1000) and
+             * the desired number of results */
+            _query.add("count", Math.min(1000L, _limitRemain));
             try {
-                _nextBatch = _httpIntf.httpGet(_endpoint, _query);
+                _nextBatch = _httpIntf.httpGet(_endpoint, _query.build());
             } catch (IOException ex) {
                 throw new IterationException(_endpoint, ex);
             }
         }
 
-        /// The endpoint used for document iteration
+        // The endpoint used for document iteration
         private final String _endpoint = _collection.getEndpoint() + "/*";
 
-        /// The search query used for this document iteration
-        private final JsonObject _query = new JsonObject();
+        // The search query used for this document iteration
+        private final JsonObjectBuilder _query = JSON_BF.createObjectBuilder();
 
-        /// If streaming mode is used
+        // Used in non-streaming mode to wrap elements in a document hash
+        private JsonObjectBuilder _docWrapper;
+
+        // If streaming mode is used
         private final boolean _streaming;
 
-        private Future<JsonElement> _nextBatch;
+        private Future<JsonValue> _nextBatch;
         private JsonArray _currentBatch;
         private int _offset;
+        private long _nextStart;
+        private long _limitRemain;
     }
 }

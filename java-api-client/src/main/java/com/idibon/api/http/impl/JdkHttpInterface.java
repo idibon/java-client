@@ -11,8 +11,7 @@ import java.nio.charset.Charset;
 
 import com.idibon.api.http.*;
 
-import com.google.gson.*;
-import com.google.gson.stream.JsonWriter;
+import javax.json.*;
 
 import com.idibon.api.util.ExtendedByteArrayOutputStream;
 
@@ -69,96 +68,57 @@ public class JdkHttpInterface implements HttpInterface {
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpGet(String)}
      */
-    public Future<JsonElement> httpGet(String endpoint) throws IOException {
+    public Future<JsonValue> httpGet(String endpoint) throws IOException {
         return httpGet(endpoint, null);
     }
 
     /**
-     * Implements {@link com.idibon.api.http.HttpInterface#httpGet(String, JsonElement)}
+     * Implements {@link com.idibon.api.http.HttpInterface#httpGet(String, JsonObject)}
      */
-    public Future<JsonElement> httpGet(final String endpoint,
-                                       final JsonElement body) throws IOException {
+    public Future<JsonValue> httpGet(String endpoint,
+                                     JsonObject body) throws IOException {
 
-        Callable<JsonElement> async = new Callable<JsonElement>() {
-            public JsonElement call() throws IOException {
-                HttpURLConnection conn = getConnection(endpoint);
-                conn.setDoInput(true);
-                conn.setDoOutput(body != null);
-                conn.setRequestMethod("GET");
-
-                OutputStream os = null;
-                try {
-                    if (body != null) {
-                        /* Serialize the JSON payload and set the content-length
-                         * header appropriately */
-                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                        writeJsonStream(body, bos);
-                        byte[] bytes = bos.toByteArray();
-                        /* Java's HttpURLConnection has a (major) bug in
-                         * getOutputStream which forces the method to POST.
-                         * Use the X-HTTP-Method-Override header so that the
-                         * server will treat the request as a GET. */
-                        conn.setRequestProperty("X-HTTP-Method-Override", "GET");
-                        conn.setRequestProperty("Content-Length",
-                                                Integer.toString(bytes.length));
-                        os = conn.getOutputStream();
-                        os.write(bytes);
-                    }
-                    return maybeHandleChunkedInput(conn);
-                } catch (IOException ex) {
-                    /* if an HTTP protocol (3xx, 4xx, 5xx) error caused this
-                     * exception, convert it to a more meaningful exception tree
-                     * rather than just an IOException */
-                    int responseCode = -1;
-                    try {
-                        responseCode = conn.getResponseCode();
-                    } catch (IOException _) { }
-
-                    if (responseCode != -1 && responseCode != HTTP_OK)
-                        throw HttpException.from(conn, ex);
-
-                    // otherwise, re-throw the original exception
-                    throw ex;
-                } finally {
-                    if (os != null) os.close();
-                }
-            }
-        };
-
-        FutureTask<JsonElement> future = new FutureTask<JsonElement>(async);
         try {
-            _threadPool.submit(future);
-            return future;
+            return _threadPool.submit(new HttpOp("GET", endpoint, body));
         } catch (RejectedExecutionException ex) {
             throw new IOException("Unable to perform asynchronous GET", ex);
         }
     }
 
     /**
-     * Implements {@link com.idibon.api.http.HttpInterface#httpPut(String, JsonElement)}
+     * Implements {@link com.idibon.api.http.HttpInterface#httpPut(String, JsonObject)}
      */
-    public Future<JsonElement> httpPut(String endpoint, JsonElement body)
+    public Future<JsonValue> httpPut(String endpoint, JsonObject body)
         throws IOException {
-
-        throw new UnsupportedOperationException("Not yet!");
+        try {
+            return _threadPool.submit(new HttpOp("PUT", endpoint, body));
+        } catch (RejectedExecutionException ex) {
+            throw new IOException("Unable to perform asynchronous PUT", ex);
+        }
     }
 
     /**
-     * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonElement)}
+     * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonObject)}
      */
-    public Future<JsonElement> httpPost(String endpoint, JsonElement body)
+    public Future<JsonValue> httpPost(String endpoint, JsonObject body)
         throws IOException {
-
-        throw new UnsupportedOperationException("Not yet!");
+        try {
+            return _threadPool.submit(new HttpOp("POST", endpoint, body));
+        } catch (RejectedExecutionException ex) {
+            throw new IOException("Unable to perform asynchronous POST", ex);
+        }
     }
 
     /**
-     * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonElement)}
+     * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonObject)}
      */
-    public Future<JsonElement> httpDelete(String endpoint, JsonElement body)
+    public Future<JsonValue> httpDelete(String endpoint, JsonObject body)
         throws IOException {
-
-        throw new UnsupportedOperationException("Not yet!");
+        try {
+            return _threadPool.submit(new HttpOp("DELETE", endpoint, body));
+        } catch (RejectedExecutionException ex) {
+            throw new IOException("Unable to perform asynchronous DELETE", ex);
+        }
     }
 
     /**
@@ -182,14 +142,13 @@ public class JdkHttpInterface implements HttpInterface {
      * If the response uses chunked encoding, each of the chunks will be
      * parsed and added to an array
      */
-    private JsonElement maybeHandleChunkedInput(HttpURLConnection conn)
+    private JsonValue maybeHandleChunkedInput(HttpURLConnection conn)
         throws IOException {
 
-        InputStream is = new BufferedInputStream(conn.getInputStream());
-        try {
+        try (InputStream is = new BufferedInputStream(conn.getInputStream())) {
             String transferEncoding = conn.getHeaderField("Transfer-Encoding");
             if (transferEncoding == null)
-                return readJsonStream(is);
+                return readJson(is);
 
             String contentType = conn.getHeaderField("Content-Type");
             if (contentType == null)
@@ -199,10 +158,10 @@ public class JdkHttpInterface implements HttpInterface {
             if (boundaryIndex == -1)
                 throw new IOException("Chunk boundary missing");
 
+            /* strip off the "boundary=" prefix from the header, leaving just
+             * the random boundary marker text. */
             String boundary = contentType.substring(boundaryIndex + 9);
             return handleChunkedInput(is, boundary);
-        } finally {
-            is.close();
         }
     }
 
@@ -213,12 +172,12 @@ public class JdkHttpInterface implements HttpInterface {
      * @param is Data stream to read
      * @param boundary The chunk boundary from the HTTP header
      */
-    private static JsonElement handleChunkedInput(InputStream is,
+    private static JsonValue handleChunkedInput(InputStream is,
         String boundary) throws IOException {
 
         byte[] sep = ("--" + boundary).getBytes(UTF8);
 
-        JsonArray array = new JsonArray();
+        JsonArrayBuilder array = Json.createArrayBuilder();
         ExtendedByteArrayOutputStream bs = new ExtendedByteArrayOutputStream();
         byte[] buffer = new byte[4096];
 
@@ -231,7 +190,7 @@ public class JdkHttpInterface implements HttpInterface {
              * parsed bytes from the byte stream. */
             for (int i = bs.indexOf(sep); i != -1; i = bs.indexOf(sep)) {
                 // don't try to read a JSON stream if there is no data to read
-                if (i != 0) array.add(readJsonStream(bs.toInputStream(0, i)));
+                if (i != 0) array.add(readJson(bs.toInputStream(0, i)));
                 // discard the chunk and separator that was just processed
                 bs.dropFirst(i + sep.length);
             }
@@ -244,7 +203,7 @@ public class JdkHttpInterface implements HttpInterface {
         if (bs.size() != 2 || !bs.endsWith(new byte[]{ 45, 45 }))
             throw new IOException("Invalid chunked transfer encoding");
 
-        return array;
+        return array.build();
     }
 
     /**
@@ -254,14 +213,9 @@ public class JdkHttpInterface implements HttpInterface {
      * @param stream InputStream to consume
      * @return parsed JSON element
      */
-    private static JsonElement readJsonStream(InputStream stream)
-        throws IOException {
-
-        JsonParser parser = new JsonParser();
-        try {
-            return parser.parse(new InputStreamReader(stream, UTF8));
-        } catch (JsonParseException ex) {
-            throw new IOException("Unable to decode JSON from stream", ex);
+    private static JsonValue readJson(InputStream stream) {
+        try (JsonReader r = JSON_RF.createReader(stream, UTF8)) {
+            return r.read();
         }
     }
 
@@ -272,24 +226,11 @@ public class JdkHttpInterface implements HttpInterface {
      * @param body The JSON payload to write
      * @param stream Where the payload should be written
      */
-    private void writeJsonStream(JsonElement body, OutputStream stream)
-        throws IOException {
-
-        if (body == null)
-            throw new NullPointerException("body");
-
-        if (stream == null)
-            throw new NullPointerException("stream");
-
-        JsonWriter writer = new JsonWriter(
-            new OutputStreamWriter(stream, UTF8));
-
-        try {
-            new Gson().toJson(body, writer);
-            writer.flush();
-        } catch (JsonIOException ex) {
-            throw new IOException("Unable to encode JSON to stream", ex);
+    private static <T extends OutputStream> T writeJson(JsonObject body, T os) {
+        try (JsonWriter w = JSON_WF.createWriter(os, UTF8)) {
+            w.writeObject(body);
         }
+        return os;
     }
 
     /**
@@ -354,25 +295,25 @@ public class JdkHttpInterface implements HttpInterface {
             int v = ((int)utf8[i] & 0xff) << 16;
             v |= ((int)utf8[i + 1] & 0xff) << 8;
             v |= ((int)utf8[i + 2] & 0xff);
-            base64 += BASE64_TAB.charAt((v >> 18) & 0x3f);
-            base64 += BASE64_TAB.charAt((v >> 12) & 0x3f);
-            base64 += BASE64_TAB.charAt((v >> 6) & 0x3f);
-            base64 += BASE64_TAB.charAt(v & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 18) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 12) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 6) & 0x3f);
+            base64 += BASE64_TABLE.charAt(v & 0x3f);
         }
         switch (utf8.length % 3) {
         case 1: {
             int v = ((int)utf8[utf8.length - 1] & 0xff);
-            base64 += BASE64_TAB.charAt((v >> 2) & 0x3f);
-            base64 += BASE64_TAB.charAt((v << 4) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 2) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v << 4) & 0x3f);
             base64 += "==";
             break;
         }
         case 2: {
             int v = ((int)utf8[utf8.length - 2] & 0xff) << 8;
             v |= ((int)utf8[utf8.length - 1] & 0xff);
-            base64 += BASE64_TAB.charAt((v >> 10) & 0x3f);
-            base64 += BASE64_TAB.charAt((v >> 4) & 0x3f);
-            base64 += BASE64_TAB.charAt((v << 2) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 10) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v >> 4) & 0x3f);
+            base64 += BASE64_TABLE.charAt((v << 2) & 0x3f);
             base64 += "=";
             break;
         }
@@ -381,9 +322,6 @@ public class JdkHttpInterface implements HttpInterface {
         }
         return base64;
     }
-
-    private static final String BASE64_TAB =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     /// Scheme, hostname and port of the API server
     private URL _serverAddress;
@@ -402,6 +340,13 @@ public class JdkHttpInterface implements HttpInterface {
         new ThreadPoolExecutor(3, 8, 20, TimeUnit.SECONDS,
                                new LinkedBlockingQueue<Runnable>());
 
+    /// Base-64 encoding table
+    private static final String BASE64_TABLE =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    private static final JsonWriterFactory JSON_WF = Json.createWriterFactory(null);
+    private static final JsonReaderFactory JSON_RF = Json.createReaderFactory(null);
+
     private static final Charset UTF8 = Charset.forName("UTF-8");
 
     private static final HostnameVerifier NO_HOSTNAME_VALIDATION =
@@ -410,4 +355,111 @@ public class JdkHttpInterface implements HttpInterface {
             return true;
         }
       };
+
+    /**
+     * HTTP operation with result.
+     */
+    private class HttpOp implements Callable<JsonValue> {
+        HttpOp(String method, String endpoint, JsonObject body) {
+            _method = method;
+            _endpoint = endpoint;
+            _body = toBytes(body);
+        }
+
+        private byte[] toBytes(JsonObject body) {
+            if (body == null) return null;
+            return writeJson(body, new ByteArrayOutputStream()).toByteArray();
+        }
+
+        public JsonValue call() throws IOException {
+            HttpURLConnection conn = getConnection(_endpoint);
+            conn.setDoInput(true);
+            conn.setDoOutput(_body != null);
+            /* Java's HttpURLConnection has a (major) bug in getOutputStream
+             * which forces every method except PUT or POST to become a POST
+             * method if an entity is included in the request. Detect this
+             * case and use X-HTTP-Method-Override to work-around this
+             * limitation, since the Idibon API expects bodies for some GET
+             * and DELETE operations */
+            if (_method.equals("PUT") || _method.equals("POST"))
+                conn.setRequestMethod(_method);
+            else
+                conn.setRequestMethod(_body == null ? _method : "POST");
+
+            if (_body != null) {
+                conn.setRequestProperty("X-HTTP-Method-Override", _method);
+                conn.setRequestProperty("Content-Length",
+                                        Integer.toString(_body.length));
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(_body);
+                }
+            }
+
+            try {
+                return maybeHandleChunkedInput(conn);
+            } catch (IOException ex) {
+                /* if an HTTP protocol (3xx, 4xx, 5xx) error caused this
+                 * exception, convert it to a more meaningful exception tree
+                 * rather than just an IOException */
+                int responseCode = -1;
+                try {
+                    responseCode = conn.getResponseCode();
+                } catch (IOException _) { }
+
+                if (responseCode != -1 && responseCode != HTTP_OK)
+                    throw httpException(conn, ex);
+
+                // otherwise, re-throw the original exception
+                throw ex;
+            }
+        }
+
+        private String _endpoint;
+        private String _method;
+        private byte[] _body;
+    }
+
+    /**
+     * Generate specific exception instances for known HTTP response codes
+     */
+    private static HttpException httpException(HttpURLConnection conn,
+                                               Throwable chain) {
+        int code = -1;
+        String msg = "";
+        JsonObject obj = null;
+        URL url = conn.getURL();
+        try {
+            code = conn.getResponseCode();
+            msg = conn.getResponseMessage();
+            if (conn.getContentType().equals("application/json"))
+                obj = (JsonObject)readJson(conn.getErrorStream());
+        } catch (Exception _) { }
+
+        switch (code) {
+        case HTTP_BAD_REQUEST:
+            return new HttpException.BadRequest(url, code, msg, obj, chain);
+        case HTTP_UNAUTHORIZED:
+            return new HttpException.Unauthorized(url, code, msg, obj, chain);
+        case HTTP_FORBIDDEN:
+            return new HttpException.Forbidden(url, code, msg, obj, chain);
+        case HTTP_NOT_FOUND:
+            return new HttpException.NotFound(url, code, msg, obj, chain);
+        case HTTP_ENTITY_TOO_LARGE:
+            return new HttpException.EntityTooLarge(url, code, msg, obj, chain);
+        case HTTP_INTERNAL_ERROR:
+            return new HttpException.InternalServerError(url, code, msg, obj, chain);
+        case HTTP_UNAVAILABLE:
+            return new HttpException.ServiceUnavailable(url, code, msg, obj, chain);
+        case HTTP_GATEWAY_TIMEOUT:
+            return new HttpException.GatewayTimeout(url, code, msg, obj, chain);
+        }
+
+        if (code >= 400 && code < 500)
+            return new HttpException.ClientError(url, code, msg, obj, chain);
+        else if (code >= 500 && code < 600)
+            return new HttpException.ServerError(url, code, msg, obj, chain);
+
+        return new HttpException(url, code, msg, obj, chain);
+    }
 }

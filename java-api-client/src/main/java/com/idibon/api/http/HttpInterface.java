@@ -6,7 +6,7 @@ package com.idibon.api.http;
 
 import java.io.*;
 import java.util.concurrent.Future;
-import com.google.gson.JsonElement;
+import javax.json.*;
 
 /**
  * Generic interface abstracting the HTTP methods that are used by the
@@ -22,7 +22,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonElement> httpGet(String endpoint)
+    public Future<JsonValue> httpGet(String endpoint)
         throws IOException;
 
     /**
@@ -34,7 +34,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonElement> httpGet(String endpoint, JsonElement body)
+    public Future<JsonValue> httpGet(String endpoint, JsonObject body)
         throws IOException;
 
     /**
@@ -46,7 +46,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonElement> httpPut(String endpoint, JsonElement body)
+    public Future<JsonValue> httpPut(String endpoint, JsonObject body)
         throws IOException;
 
     /**
@@ -58,7 +58,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonElement> httpPost(String endpoint, JsonElement body)
+    public Future<JsonValue> httpPost(String endpoint, JsonObject body)
         throws IOException;
 
     /**
@@ -70,7 +70,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonElement> httpDelete(String endpoint, JsonElement body)
+    public Future<JsonValue> httpDelete(String endpoint, JsonObject body)
         throws IOException;
 
     /**

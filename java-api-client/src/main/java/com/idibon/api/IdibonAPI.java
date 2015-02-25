@@ -36,9 +36,9 @@ public class IdibonAPI {
     /**
      * Returns the cached Collection object with the provided name.
      */
-    public Collection getCollection(String name) {
+    public Collection collection(String name) {
         mustHaveInterface();
-        return new Collection(name, _httpIntf);
+        return Collection.instance(_httpIntf, name);
     }
 
     /**
