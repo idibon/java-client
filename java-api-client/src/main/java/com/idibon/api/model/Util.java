@@ -3,6 +3,8 @@
  */
 package com.idibon.api.model;
 
+import java.io.IOException;
+
 import java.util.*;
 import javax.json.*;
 import java.text.SimpleDateFormat;
@@ -38,6 +40,100 @@ final class Util {
             else b.add(s);
         }
         return b.build();
+    }
+
+    /**
+     * Creates a JsonObject from DocumentContent
+     *
+     * @param doc The document content that should be uploaded.
+     * @return JSON payload to send to the server.
+     */
+    static JsonObject toJson(DocumentContent doc) throws IOException {
+        JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+
+        if (doc instanceof DocumentContent.Named) {
+            bldr.add(Document.Keys.name.name(),
+                     ((DocumentContent.Named)doc).getName());
+        }
+
+        bldr.add(Document.Keys.content.name(), doc.getContent());
+        JsonObject metadata = doc.getMetadata();
+        if (metadata != null) bldr.add(Document.Keys.metadata.name(), metadata);
+
+        if (doc instanceof DocumentContent.Annotated) {
+            List<? extends Annotation> anns =
+                ((DocumentContent.Annotated)doc).getAnnotations();
+
+            JsonArrayBuilder array = JSON_BF.createArrayBuilder();
+            for (Annotation ann : anns) array.add(toJson(ann));
+            bldr.add(Document.Keys.annotations.name(), array);
+        }
+
+        return bldr.build();
+    }
+
+    /**
+     * Creates a JsonObject from an Annotation
+     *
+     * @param ann An annotation instance, either a new annotation (no UUID)
+     *            to create on the API, or an existing annotation to update.
+     * @return JSON payload to send to server.
+     */
+    static JsonObject toJson(Annotation ann) throws IOException {
+        JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+        bldr.add(Annotation.Keys.is_active.name(), ann.active);
+
+        if (ann.uuid != null)
+            bldr.add(Annotation.Keys.uuid.name(), ann.uuid.toString());
+        if (ann.userID != null)
+            bldr.add(Annotation.Keys.user_id.name(), ann.userID.toString());
+
+        if (ann instanceof Annotation.Assignment)
+            return toJson(bldr, (Annotation.Assignment)ann);
+        else if (ann instanceof Annotation.Judgment)
+            return toJson(bldr, (Annotation.Judgment)ann);
+        else
+            throw new IllegalArgumentException("Invalid annotation class");
+    }
+
+    /**
+     * Generate a JSON payload for an assignment annotation
+     */
+    private static JsonObject toJson(JsonObjectBuilder bldr,
+          Annotation.Assignment ann) throws IOException {
+        /* the API accepts flat task / label names as well as JSON hashes
+         * with a "name" key. use the flat format here. */
+        bldr.add(Annotation.Keys.task.name(), ann.taskName);
+        bldr.add(Annotation.Keys.label.name(), ann.labelName);
+        bldr.add(Annotation.Keys.provenance.name(), ann.provenance.name());
+        bldr.add(Annotation.Keys.is_negated.name(), ann.negativeExample);
+        bldr.add(Annotation.Keys.is_trainable.name(), ann.trainable);
+        if (!Double.isNaN(ann.confidence))
+            bldr.add(Annotation.Keys.confidence.name(), ann.confidence);
+
+        if (ann instanceof Annotation.SpanAssignment) {
+            Annotation.SpanAssignment span = (Annotation.SpanAssignment)ann;
+            bldr.add(Annotation.Keys.offset.name(), span.offset);
+            bldr.add(Annotation.Keys.length.name(), span.length);
+            bldr.add(Annotation.Keys.text.name(), span.getText());
+        }
+
+        return bldr.build();
+    }
+
+    /**
+     * Generate a JSON payload for a judgment annotation
+     */
+    private static JsonObject toJson(JsonObjectBuilder bldr,
+          Annotation.Judgment ann) {
+        if (ann.assignment.uuid == null)
+            throw new IllegalStateException("Can't judge uncommitted assignment");
+
+        bldr.add(Annotation.Keys.subject_id.name(),
+                 ann.assignment.uuid.toString());
+
+        bldr.add(Annotation.Keys.is_negated.name(), ann.disagreement);
+        return bldr.build();
     }
 
     /**
