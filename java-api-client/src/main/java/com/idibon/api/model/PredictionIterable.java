@@ -106,10 +106,10 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
             }
 
             try {
-                T rv = _clazz.newInstance();
-                rv.init((JsonArray)result, head.request);
+                T prediction = _clazz.newInstance();
+                prediction.init((JsonArray)result, head.request, _target);
                 advance(head);
-                return rv;
+                return prediction;
             } catch (InstantiationException | IllegalAccessException _) {
                 throw new Error("Impossible");
             }

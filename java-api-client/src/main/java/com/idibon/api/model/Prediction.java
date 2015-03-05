@@ -16,6 +16,11 @@ public interface Prediction<T extends Prediction> {
     DocumentContent getRequested();
 
     /**
+     * Returns the Task that generated the prediction.
+     */
+    Task getTask();
+
+    /**
      * Returns a typesafe cast of the item submitted to the prediction API.
      */
     <T extends DocumentContent> T getRequestedAs(Class<T> clazz);
@@ -29,5 +34,5 @@ public interface Prediction<T extends Prediction> {
      * Initializes the instance using the provided raw results
      * returned by the API.
      */
-    void init(JsonArray v,  DocumentContent predictable);
+    void init(JsonArray v,  DocumentContent predictable, Task task);
 }

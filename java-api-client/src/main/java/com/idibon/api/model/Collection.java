@@ -119,6 +119,10 @@ public class Collection extends IdibonHash {
             c.getEndpoint().equals(getEndpoint());
     }
 
+    @Override public int hashCode() {
+        return getEndpoint().hashCode();
+    }
+
     /**
      * Returns a Collection instance for the provided collection name
      *

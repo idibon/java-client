@@ -111,15 +111,33 @@ public class IdibonAPI_IT {
         Collection c = _apiClient.collection("general_sentiment_5pt_scale");
         Task sentiment = c.task("Sentiment");
         List<String> predicted = new ArrayList<String>();
-        for (DocumentPrediction p :
-                 sentiment.classifications(c.documents().first(100))) {
+        for (DocumentPrediction p : sentiment
+                 .classifications(c.documents().first(100))) {
             predicted.add(p.getRequestedAs(Document.class).getName());
+            assertThat(p.getPredictedConfidences().size(), is(5));
         }
         List<String> expected = new ArrayList<String>();
         for (Document d : c.documents().first(100))
             expected.add(d.getName());
 
         assertThat(predicted, is(expected));
+    }
+
+    @Test public void predictionsCanIncludeFeatures() throws Exception {
+        Collection c = _apiClient.collection("general_sentiment_5pt_scale");
+        Task sentiment = c.task("Sentiment");
+        PredictionIterable<DocumentPrediction> predictions = sentiment
+            .classifications(c.documents().first());
+
+        // first, try without specifying a feature threshold.
+        for (DocumentPrediction p : predictions)
+            assertThat(p.getSignificantFeatures(), is(nullValue()));
+
+        for (DocumentPrediction p : predictions.withSignificantFeatures(0.5)) {
+            Map<Label, List<String>> features = p.getSignificantFeatures();
+            assertThat(features, is(not(nullValue())));
+            assertThat(features.size(), is(not(0)));
+        }
     }
 
     @Test public void canUploadAndDeleteDocuments() throws Exception {

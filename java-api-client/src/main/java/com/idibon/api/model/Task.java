@@ -130,6 +130,14 @@ public class Task extends IdibonHash {
     }
 
     /**
+     * Create a label instance for a label with the provided name in
+     * the current task.
+     */
+    public Label label(String name) {
+        return Label.instance(this, name);
+    }
+
+    /**
      * Returns the task JSON
      */
     public JsonObject getJson() throws IOException {
@@ -163,6 +171,19 @@ public class Task extends IdibonHash {
      */
     public Collection getCollection() {
         return _parent;
+    }
+
+    @Override public boolean equals(Object other) {
+        if (other == this) return true;
+        if (!(other instanceof Task)) return false;
+
+        Task t = (Task)other;
+        return t.getName().equals(_name) &&
+            t.getCollection().equals(_parent);
+    }
+
+    @Override public int hashCode() {
+        return _name.hashCode();
     }
 
     static Task instance(Collection parent, String name) {
