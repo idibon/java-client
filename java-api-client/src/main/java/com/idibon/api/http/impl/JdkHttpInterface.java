@@ -337,8 +337,8 @@ public class JdkHttpInterface implements HttpInterface {
 
     /// Asynchronous execution threads for FutureTasks
     private final ThreadPoolExecutor _threadPool =
-        new ThreadPoolExecutor(3, 8, 20, TimeUnit.SECONDS,
-                               new LinkedBlockingQueue<Runnable>());
+        new ThreadPoolExecutor(CONNECTION_LIMIT, CONNECTION_LIMIT,
+            20, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
 
     /// Base-64 encoding table
     private static final String BASE64_TABLE =
@@ -355,6 +355,15 @@ public class JdkHttpInterface implements HttpInterface {
             return true;
         }
       };
+
+    private static final int CONNECTION_LIMIT = 10;
+
+
+    static {
+        System.setProperty("http.maxConnections",
+                           Integer.toString(CONNECTION_LIMIT));
+    }
+
 
     /**
      * HTTP operation with result.
