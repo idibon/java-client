@@ -6,6 +6,7 @@ package com.idibon.api;
 import java.io.IOException;
 import java.util.*;
 
+import com.idibon.api.http.HttpException;
 import com.idibon.api.http.impl.JdkHttpInterface;
 import com.idibon.api.model.*;
 import com.idibon.api.model.Collection;
@@ -121,7 +122,60 @@ public class IdibonAPI_IT {
         assertThat(predicted, is(expected));
     }
 
+    @Test public void canUploadAndDeleteDocuments() throws Exception {
+        Collection c = _apiClient.collection("e0db414891d6-test124");
+        List<DocumentContent.Named> content = new ArrayList<>();
+
+        try {
+            content.add(UploadableDoc.named("homer simpson").content("d'oh!"));
+            content.add(UploadableDoc.named("bart simpson").content("eat my shorts!"));
+            c.addDocuments(content);
+
+            // verify that the documents were actually uploaded
+            Document homer = c.document("homer simpson");
+            Document bart = c.document("bart simpson");
+
+            assertThat(homer.getContent(), is("d'oh!"));
+            assertThat(bart.getContent(), is("eat my shorts!"));
+
+        } finally {
+            _apiClient.waitFor(c.document("homer simpson").deleteAsync(),
+                               c.document("bart simpson").deleteAsync());
+        }
+
+        try {
+            c.document("homer simpson").getContent();
+            throw new RuntimeException("Document was not deleted");
+        } catch (HttpException.NotFound _) {
+            // ignore. the document should not be found
+        }
+    }
+
     @AfterClass public static void shutdown() {
         _apiClient.shutdown(0);
+    }
+
+    private static class UploadableDoc implements DocumentContent.Named {
+        public UploadableDoc name(String name) {
+            _name = name;
+            return this;
+        }
+
+        public UploadableDoc content(String content) {
+            _content = content;
+            return this;
+        }
+
+        public String getName() { return _name; }
+        public String getContent() { return _content; }
+        public JsonObject getMetadata() { return _metadata; }
+
+        private String _name = null;
+        private String _content = null;
+        private JsonObject _metadata = null;
+
+        public static UploadableDoc named(String name) {
+            return new UploadableDoc().name(name);
+        }
     }
 }

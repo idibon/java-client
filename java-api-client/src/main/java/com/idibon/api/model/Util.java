@@ -267,6 +267,9 @@ final class Util {
      */
     static final JsonBuilderFactory JSON_BF = Json.createBuilderFactory(null);
 
+    static final JsonObject EMPTY_JSON_OBJECT =
+        JSON_BF.createObjectBuilder().build();
+
     /**
      * Expands a compacted JSON hash for an annotation into standard form.
      *

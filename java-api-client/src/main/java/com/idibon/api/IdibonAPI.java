@@ -3,6 +3,14 @@
  */
 package com.idibon.api;
 
+import java.io.IOException;
+
+import java.util.Arrays;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
+
+import javax.json.JsonValue;
+
 import com.idibon.api.model.*;
 import com.idibon.api.http.*;
 
@@ -39,6 +47,34 @@ public class IdibonAPI {
     public Collection collection(String name) {
         mustHaveInterface();
         return Collection.instance(_httpIntf, name);
+    }
+
+    /**
+     * Wait for one or more asynchronous operations to complete.
+     *
+     * Same as calling #waitFor(Arrays.asList(futures)).
+     *
+     * @param futures List of operations to synchronize on completion.
+     */
+    public void waitFor(Future<JsonValue>... futures) throws IOException {
+        waitFor(Arrays.asList(futures));
+    }
+
+    public void waitFor(Iterable<Future<JsonValue>> futures) throws IOException {
+        Throwable first = null;
+        for (Future<JsonValue> f : futures) {
+            try {
+                f.get();
+            } catch (ExecutionException ex) {
+                if (first == null) first = ex.getCause();
+            } catch (InterruptedException ex) {
+                if (first == null) first = ex.getCause();
+            }
+        }
+
+        if (first == null) return;
+        if (first instanceof IOException) throw (IOException)first;
+        throw new IOException("Exception waiting for results", first);
     }
 
     /**

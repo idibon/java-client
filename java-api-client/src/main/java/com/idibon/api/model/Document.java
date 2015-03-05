@@ -5,7 +5,9 @@ package com.idibon.api.model;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Future;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 
 import com.idibon.api.http.*;
 import javax.json.*;
@@ -141,6 +143,33 @@ public class Document extends IdibonHash
      */
     public JsonObject getMetadata() throws IOException {
         return getJson().getJsonObject(Keys.metadata.name());
+    }
+
+    /**
+     * Synchronously deletes this document.
+     */
+    public void delete() throws IOException {
+        Throwable cause = null;
+        try {
+            deleteAsync().get();
+        } catch (ExecutionException ex) {
+            cause = ex.getCause();
+        } catch (InterruptedException ex) {
+            cause = ex;
+        }
+
+        if (cause instanceof IOException)
+            throw (IOException)cause;
+        else if (cause != null)
+            throw new IOException("Unable to delete " + getName(), cause);
+    }
+
+    /**
+     * Schedules this document for deletion, and returns a Future that will
+     * complete after the document is deleted.
+     */
+    public Future<JsonValue> deleteAsync() throws IOException {
+        return _httpIntf.httpDelete(getEndpoint(), EMPTY_JSON_OBJECT);
     }
 
     /**
