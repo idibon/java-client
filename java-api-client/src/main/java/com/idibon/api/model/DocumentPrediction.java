@@ -37,7 +37,7 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
      * Returns the predicted confidences for the requested DocumentContent
      * against all Labels in the Task.
      *
-     * @returns A {@link java.util.Map} of {@link com.idibon.api.model.Label}
+     * @return A {@link java.util.Map} of {@link com.idibon.api.model.Label}
      *    to the prediction confidence for that Label.
      */
     public Map<Label, Double> getPredictedConfidences() throws IOException {
@@ -68,7 +68,7 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
      * by the {@link com.idibon.api.model.PredictionIterable} that generated
      * this prediction.
      *
-     * @returns A {@link java.util.Map} of {@link com.idibon.api.model.Label}
+     * @return A {@link java.util.Map} of {@link com.idibon.api.model.Label}
      *    to a {@link java.util.List} of the features that influenced the
      *    prediction above the requested significant feature threshold.
      */

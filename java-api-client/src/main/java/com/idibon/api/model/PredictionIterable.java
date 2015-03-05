@@ -27,7 +27,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
      * Returns the key words and phrases from the document content that
      * affected the prediction.
      *
-     * @returns This
+     * @return This
      */
     public PredictionIterable<T> withSignificantFeatures() {
         return withSignificantFeatures(0.7);
@@ -39,7 +39,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
      *
      * @param threshold Defines the cutoff threshold to include features.
      *        Should be 0.0 - 1.0.
-     * @returns This
+     * @return This
      */
     public PredictionIterable<T> withSignificantFeatures(double threshold) {
         _includeFeatures = true;
@@ -138,7 +138,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
          * Dispatch a prediction request.
          *
          * @param content The item to predict
-         * @returns A promise with the prediction result
+         * @return A promise with the prediction result
          */
         private Future<JsonValue> makePrediction(DocumentContent content)
               throws IOException {
