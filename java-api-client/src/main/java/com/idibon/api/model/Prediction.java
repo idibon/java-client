@@ -13,12 +13,12 @@ public interface Prediction<T extends Prediction> {
     /**
      * Returns the item that was submitted to the prediction API.
      */
-    Predictable getPredictable();
+    DocumentContent getRequested();
 
     /**
      * Returns a typesafe cast of the item submitted to the prediction API.
      */
-    <T extends Predictable> T getPredictableAs(Class<T> clazz);
+    <T extends DocumentContent> T getRequestedAs(Class<T> clazz);
 
     /**
      * Returns the raw JSON predictions returned by the API.
@@ -29,5 +29,5 @@ public interface Prediction<T extends Prediction> {
      * Initializes the instance using the provided raw results
      * returned by the API.
      */
-    void init(JsonArray v,  Predictable predictable);
+    void init(JsonArray v,  DocumentContent predictable);
 }

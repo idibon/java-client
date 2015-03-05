@@ -43,12 +43,11 @@ public class IdibonAPI_IT {
     }
 
     @Test public void canReadDocumentNames() throws Exception {
-        // tests the non-streaming, name+date-only mode
+        // tests the non-streaming, name-only mode
         Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
         for (Document d : collection.documents()) {
-            assertThat(d.getJson().getString("content", null), is(nullValue()));
-            assertThat(d.getJson().getString("created_at"), is(not(nullValue())));
+            assertThat(d.isLoaded(), is(false));
             count++;
         }
         assertThat(count, is(75113));
@@ -113,7 +112,7 @@ public class IdibonAPI_IT {
         List<String> predicted = new ArrayList<String>();
         for (DocumentPrediction p :
                  sentiment.classifications(c.documents().first(100))) {
-            predicted.add(p.getPredictableAs(Document.class).getName());
+            predicted.add(p.getRequestedAs(Document.class).getName());
         }
         List<String> expected = new ArrayList<String>();
         for (Document d : c.documents().first(100))

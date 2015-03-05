@@ -16,7 +16,7 @@ import static com.idibon.api.model.Util.*;
  * A Document is the basic unit of content in a Collection
  */
 public class Document extends IdibonHash
-      implements Predictable, DocumentContent.Annotated, DocumentContent.Named {
+      implements DocumentContent.Annotated, DocumentContent.Named {
 
     /**
      * Keys in the JSON hash. Some keys may not be present, depending
@@ -84,6 +84,13 @@ public class Document extends IdibonHash
      */
     public String getName() {
         return _name;
+    }
+
+    /**
+     * Returns the collection where this document is stored.
+     */
+    public Collection getCollection() {
+        return _parent;
     }
 
     /**
@@ -194,13 +201,6 @@ public class Document extends IdibonHash
 
         _jsonCache.put(Keys.annotations, annotations);
         return annotations;
-    }
-
-    /**
-     * Returns a body with {"document":"name"}
-     */
-    public JsonObject createPredictionRequest() {
-        return JSON_BF.createObjectBuilder().add("document", getName()).build();
     }
 
     /**

@@ -350,11 +350,14 @@ public class DocumentSearcher implements Iterable<Document> {
             _offset += 1;
             if (_streaming) {
                 return _collection.document(expandDocument(obj));
-            } else {
+            } else if (needsFullContentMode()) {
                 /* preload the returned Document object with whatever data
                  * was requested. */
                 return _collection.document(
                          _docWrapper.add("document", obj).build());
+            } else {
+                // just the document name.
+                return _collection.document(obj.getString("name"));
             }
         }
 

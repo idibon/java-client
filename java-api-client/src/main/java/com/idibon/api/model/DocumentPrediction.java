@@ -10,13 +10,13 @@ import javax.json.*;
  */
 public class DocumentPrediction implements Prediction<DocumentPrediction> {
 
-    public Predictable getPredictable() {
-        return _predictable;
+    public DocumentContent getRequested() {
+        return _requested;
     }
 
-    public <T extends Predictable> T getPredictableAs(Class<T> clazz) {
+    public <T extends DocumentContent> T getRequestedAs(Class<T> clazz) {
         try {
-            return clazz.cast(_predictable);
+            return clazz.cast(_requested);
         } catch (ClassCastException ex) {
             throw new RuntimeException("Invalid class", ex);
         }
@@ -26,11 +26,11 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
         return _rawPredictions;
     }
 
-    public void init(JsonArray v, Predictable predictable) {
-        _predictable = predictable;
+    public void init(JsonArray v, DocumentContent requested) {
+        _requested = requested;
         _rawPredictions = v;
     }
 
     private JsonArray _rawPredictions;
-    private Predictable _predictable;
+    private DocumentContent _requested;
 }

@@ -111,8 +111,8 @@ public class Task extends IdibonHash {
      *        DocumentPrediction.class for document-scope tasks,
      *        SpanPrediction.class for span-scope tasks.
      */
-    public <T extends Prediction> Iterable<T> predictions(
-            Iterable<? extends Predictable> items, Class<T> predictClass) {
+    public <T extends Prediction> PredictionIterable<T> predictions(
+            Iterable<? extends DocumentContent> items, Class<T> predictClass) {
         return new PredictionIterable<T>(predictClass, this, items);
     }
 
@@ -123,8 +123,8 @@ public class Task extends IdibonHash {
      *
      * @param items Items to predict
      */
-    public Iterable<DocumentPrediction> classifications(
-            Iterable<? extends Predictable> items) {
+    public PredictionIterable<DocumentPrediction> classifications(
+            Iterable<? extends DocumentContent> items) {
         return new PredictionIterable<DocumentPrediction>(
           DocumentPrediction.class, this, items);
     }
@@ -156,6 +156,13 @@ public class Task extends IdibonHash {
      */
     public String getName() {
         return _name;
+    }
+
+    /**
+     * Returns the Collection that this task is a member of
+     */
+    public Collection getCollection() {
+        return _parent;
     }
 
     static Task instance(Collection parent, String name) {

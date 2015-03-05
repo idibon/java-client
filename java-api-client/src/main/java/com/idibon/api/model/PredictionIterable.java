@@ -10,8 +10,9 @@ import java.util.LinkedList;
 import java.util.Iterator;
 import java.io.IOException;
 
-import javax.json.JsonValue;
-import javax.json.JsonArray;
+import javax.json.*;
+
+import static com.idibon.api.model.Util.JSON_BF;
 
 /**
  * Generates predictions for one or more predictable items.
@@ -22,12 +23,42 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
         return this.new Iter();
     }
 
+    /**
+     * Returns the key words and phrases from the document content that
+     * affected the prediction.
+     *
+     * @returns This
+     */
+    public PredictionIterable<T> withSignificantFeatures() {
+        return withSignificantFeatures(0.7);
+    }
+
+    /**
+     * Returns words and phrases from the document content that affected
+     * the prediction above the provided threshold.
+     *
+     * @param threshold Defines the cutoff threshold to include features.
+     *        Should be 0.0 - 1.0.
+     * @returns This
+     */
+    public PredictionIterable<T> withSignificantFeatures(double threshold) {
+        _includeFeatures = true;
+        _featureThreshold = threshold;
+        return this;
+    }
+
     PredictionIterable(Class<T> clazz, Task target,
-                       Iterable<? extends Predictable> items) {
+                       Iterable<? extends DocumentContent> items) {
         _clazz = clazz;
         _target = target;
         _items = items;
     }
+
+    // Include significant features with the results?
+    private boolean _includeFeatures = false;
+
+    // Cutoff threshold for feature significance
+    private double _featureThreshold = 0.7;
 
     // The task being predicted against
     private final Task _target;
@@ -36,7 +67,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
     private final Class<T> _clazz;
 
     // The items that will be predicted
-    private final Iterable<? extends Predictable> _items;
+    private final Iterable<? extends DocumentContent> _items;
 
     // Throttle the number of outstanding requests.
     private static final int DISPATCH_LIMIT = 10;
@@ -92,27 +123,61 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
             while (_queue.size() < DISPATCH_LIMIT && _itemIt.hasNext()) {
                 Entry issue = (last != null) ? last : new Entry();
                 issue.request = _itemIt.next();
-                issue.future = makePrediction(issue.request);
+                try {
+                    issue.future = makePrediction(issue.request);
+                } catch (IOException ex) {
+                    throw new IterationException("Unable to predict " +
+                                                 issue.request, ex);
+                }
                 _queue.addLast(issue);
                 last = null;
             }
         }
 
-        private Future<JsonValue> makePrediction(Predictable p) {
-            try {
-                return _target.getInterface()
-                    .httpGet(_target.getEndpoint(), p.createPredictionRequest());
-            } catch (IOException ex) {
-                throw new IterationException(_target.getEndpoint(), ex);
+        /**
+         * Dispatch a prediction request.
+         *
+         * @param content The item to predict
+         * @returns A promise with the prediction result
+         */
+        private Future<JsonValue> makePrediction(DocumentContent content)
+              throws IOException {
+            JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+            JsonObject body = null;
+
+            if (_includeFeatures) {
+                bldr.add("features", true);
+                bldr.add("feature_threshold", _featureThreshold);
             }
+
+            if (content instanceof Document) {
+                /* for Document objects in the same collection as the task,
+                 * use in-place predictions to improve performance. this
+                 * is restricted to Documents (not just DocumentContent.Named
+                 * implementations) because the document must be physically
+                 * present on the server to use this path. */
+                Document doc = (Document)content;
+                if (doc.getCollection().equals(_target.getCollection()))
+                    body = bldr.add("document", doc.getName()).build();
+            }
+
+            if (body == null) {
+                // fallback to ephemeral predictions
+                bldr.add("content", content.getContent());
+                JsonObject metadata = content.getMetadata();
+                if (metadata != null) bldr.add("metadata", metadata);
+                body = bldr.build();
+            }
+
+            return _target.getInterface().httpGet(_target.getEndpoint(), body);
         }
 
-        private final Iterator<? extends Predictable> _itemIt;
+        private final Iterator<? extends DocumentContent> _itemIt;
         private final LinkedList<Entry> _queue;
     }
 
     private static class Entry {
         Future<JsonValue> future;
-        Predictable request;
+        DocumentContent request;
     }
 }

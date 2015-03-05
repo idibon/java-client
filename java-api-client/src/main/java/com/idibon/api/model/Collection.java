@@ -110,6 +110,15 @@ public class Collection extends IdibonHash {
         return this;
     }
 
+    @Override public boolean equals(Object other) {
+        if (other == this) return true;
+        if (!(other instanceof Collection)) return false;
+
+        Collection c = (Collection)other;
+        return c.getInterface().equals(getInterface()) &&
+            c.getEndpoint().equals(getEndpoint());
+    }
+
     /**
      * Returns a Collection instance for the provided collection name
      *
