@@ -288,18 +288,9 @@ public abstract class Annotation {
         public static Assignment parse(Document doc, JsonObject body,
               List<JsonObject> judgments) {
             UUID uuid = UUID.fromString(body.getString(Keys.uuid.name()));
-            JsonString createdJson = body.getJsonString(Keys.created_at.name());
-            JsonString updatedJson = body.getJsonString(Keys.updated_at.name());
-            Date created = null, updated = null;
-
-            if (createdJson == null) createdJson = updatedJson;
-            if (updatedJson == null) updatedJson = createdJson;
-
-            if (createdJson != null)
-                created = parseDate(createdJson.getString());
-
-            if (updatedJson != null)
-                updated = parseDate(updatedJson.getString());
+            Date created = getCreatedDate(body);
+            Date updated = getUpdatedDate(body);
+            UUID userID = getUserID(body);
 
             boolean active = true;
             JsonValue activeJson = body.get(Keys.is_active.name());
@@ -328,9 +319,6 @@ public abstract class Annotation {
             }
 
             String status = body.getString(Keys.status.name(), "");
-
-            String userIDStr = body.getString(Keys.user_id.name(), null);
-            UUID userID = userIDStr == null ? null : UUID.fromString(userIDStr);
 
             JsonNumber offset = body.getJsonNumber(Keys.offset.name());
             JsonNumber length = body.getJsonNumber(Keys.length.name());
@@ -438,18 +426,9 @@ public abstract class Annotation {
          */
         public static Judgment parse(Assignment assignment, JsonObject body) {
             UUID uuid = UUID.fromString(body.getString(Keys.uuid.name()));
-            JsonString createdJson = body.getJsonString(Keys.created_at.name());
-            JsonString updatedJson = body.getJsonString(Keys.updated_at.name());
-            Date created = null, updated = null;
-
-            if (createdJson == null) createdJson = updatedJson;
-            if (updatedJson == null) updatedJson = createdJson;
-
-            if (createdJson != null)
-                created = parseDate(createdJson.getString());
-
-            if (updatedJson != null)
-                updated = parseDate(updatedJson.getString());
+            Date created = getCreatedDate(body);
+            Date updated = getUpdatedDate(body);
+            UUID userID = getUserID(body);
 
             boolean active = true;
             JsonValue activeJson = body.get(Keys.is_active.name());
@@ -459,9 +438,6 @@ public abstract class Annotation {
                 active = false;
 
             boolean negated = body.getBoolean(Keys.is_negated.name());
-
-            String userIDStr = body.getString(Keys.user_id.name(), null);
-            UUID userID = userIDStr == null ? null : UUID.fromString(userIDStr);
 
             return new Judgment(uuid, active, assignment, negated,
                                 created, updated, userID);
@@ -474,6 +450,45 @@ public abstract class Annotation {
             this.assignment = assignment;
             this.disagreement = disagreement;
         }
+    }
+
+    /**
+     * Returns the UUID of the user who created the annotation, if it exists.
+     *
+     * @param ann Annotation JSON object
+     * @return UUID of the user who created the annotation, or null.
+     */
+    private static UUID getUserID(JsonObject ann) {
+        String userID = ann.getString(Keys.user_id.name(), null);
+        return userID != null ? UUID.fromString(userID) : null;
+    }
+
+    /**
+     * Returns the date and time that the annotation was created.
+     *
+     * @param ann Annotation JSON object
+     * @return Date the annotation was created, or null
+     */
+    private static Date getCreatedDate(JsonObject ann) {
+        JsonString date = ann.getJsonString(Keys.created_at.name());
+        if (date == null)
+            date = ann.getJsonString(Keys.updated_at.name());
+
+        return (date != null) ? parseDate(date.getString()) : null;
+    }
+
+    /**
+     * Returns the date and time that the annotation was most recently updated.
+     *
+     * @param ann Annotation JSON object
+     * @return Date the annotation was last updated, or null
+     */
+    private static Date getUpdatedDate(JsonObject ann) {
+        JsonString date = ann.getJsonString(Keys.updated_at.name());
+        if (date == null)
+            date = ann.getJsonString(Keys.created_at.name());
+
+        return (date != null) ? parseDate(date.getString()) : null;
     }
 
     protected Annotation(UUID uuid, boolean active,

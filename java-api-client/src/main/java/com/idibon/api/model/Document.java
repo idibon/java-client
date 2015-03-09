@@ -184,10 +184,10 @@ public class Document extends IdibonHash
             return annotations;
 
         JsonArray jsonAnns = getJson().getJsonArray(Keys.annotations.name());
-        if (annotations == null || annotations.isEmpty())
+        if (jsonAnns == null || jsonAnns.isEmpty())
             return Collections.EMPTY_LIST;
 
-        annotations = new ArrayList<>(annotations.size());
+        annotations = new ArrayList<>(jsonAnns.size());
 
         /* map of annotation subject ID to the annotations referencing it.
          * since subject_id may also include document IDs, this isn't
