@@ -173,6 +173,46 @@ public class Document extends IdibonHash
     }
 
     /**
+     * Add an assignment annotation for a document-scope task to the document.
+     *
+     * @param label The {@link com.idibon.api.model.Label} to assign. Must be
+     *        a label in a document-scope task.
+     * @return AnnotationBuilder to construct additional annotation parameters
+     */
+    public AnnotationBuilder.Assignment createAssignment(Label label)
+          throws IOException {
+        if (!label.getTask().getScope().equals("span"))
+            throw new IllegalArgumentException("Not a span task");
+
+        return AnnotationBuilder.Assignment.on(this, label);
+    }
+
+    /**
+     * Add an assignment annotation for a span-scope task to the document.
+     *
+     * @param label The {@link com.idibon.api.model.Label} to assign. Must be
+     *        a label in a span-scope task.
+     * @param offset The index of the first character in the document content
+     *        included in the span.
+     * @param length The length in characters of the span
+     * @return AnnotationBuilder to construct additional annotation parameters
+     */
+    public AnnotationBuilder.Assignment createAssignment(Label label,
+          int offset, int length) throws IOException {
+        if (offset < 0 || length <= 0)
+            throw new IndexOutOfBoundsException("illegal span");
+
+        String content = getContent();
+        if (offset + length >= content.length())
+            throw new IndexOutOfBoundsException("illegal span");
+
+        if (!label.getTask().getScope().equals("span"))
+            throw new IllegalArgumentException("Not a span task");
+
+        return AnnotationBuilder.Assignment.on(this, offset, length, label);
+    }
+
+    /**
      * Returns the annotations on this document
      */
     @SuppressWarnings("unchecked")

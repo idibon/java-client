@@ -103,8 +103,8 @@ final class Util {
           Annotation.Assignment ann) throws IOException {
         /* the API accepts flat task / label names as well as JSON hashes
          * with a "name" key. use the flat format here. */
-        bldr.add(Annotation.Keys.task.name(), ann.taskName);
-        bldr.add(Annotation.Keys.label.name(), ann.labelName);
+        bldr.add(Annotation.Keys.task.name(), ann.label.getTask().getName());
+        bldr.add(Annotation.Keys.label.name(), ann.label.getName());
         bldr.add(Annotation.Keys.provenance.name(), ann.provenance.name());
         bldr.add(Annotation.Keys.is_negated.name(), ann.negativeExample);
         bldr.add(Annotation.Keys.is_trainable.name(), ann.trainable);

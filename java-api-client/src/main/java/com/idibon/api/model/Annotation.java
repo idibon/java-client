@@ -228,19 +228,15 @@ public abstract class Annotation {
     public abstract static class Assignment extends Annotation {
 
         /**
-         * Document that the Assignment applies to.
+         * Document that the Assignment applies to; null if the document does
+         * not exist.
          */
         public final Document document;
 
         /**
-         * Task name that is annotated by this Assignment.
+         * The {@link com.idibon.api.model.Label} assigned by this Assignment.
          */
-        public final String taskName;
-
-        /**
-         * Label name that is annotated by this Assignment.
-         */
-        public final String labelName;
+        public final Label label;
 
         /**
          * Annotation provenance, defines the source of the Assignment.
@@ -276,6 +272,24 @@ public abstract class Annotation {
         public final List<? extends Judgment> judgments;
 
         /**
+         * Update the annotation.
+         *
+         * @return An AnnotationBuilder instance to update this annotation.
+         */
+        public AnnotationBuilder.Assignment update() {
+            return AnnotationBuilder.Assignment.update(this);
+        }
+
+        /**
+         * Add a judgment to this assignment.
+         *
+         * @return An AnnotationBuilder instance to configure a new judgment.
+         */
+        public AnnotationBuilder.Judgment addJudgment() {
+            return AnnotationBuilder.Judgment.on(this);
+        }
+
+        /**
          * Reads an Assignment from a JSON payload
          *
          * @param doc The Document that the Assignment is annotating
@@ -305,8 +319,9 @@ public abstract class Annotation {
             JsonNumber confJson = body.getJsonNumber(Keys.confidence.name());
             double conf = confJson == null ? Double.NaN : confJson.doubleValue();
 
-            String label = body.getJsonObject(Keys.label.name()).getString("name");
-            String task = body.getJsonObject(Keys.task.name()).getString("task");
+            Label label = doc.getCollection().task(
+                body.getJsonObject(Keys.task.name()).getString("name")).label(
+                body.getJsonObject(Keys.label.name()).getString("name"));
 
             Provenance provenance;
 
@@ -324,26 +339,25 @@ public abstract class Annotation {
             JsonNumber length = body.getJsonNumber(Keys.length.name());
 
             if (offset != null) {
-                return new SpanAssignment(doc, uuid, active, task, label,
+                return new SpanAssignment(doc, uuid, active, label,
                     provenance, status, negated, trainable, conf, created,
                     updated, userID, offset.intValue(), length.intValue(),
                     judgments);
             } else {
-                return new DocumentAssignment(doc, uuid, active, task, label,
+                return new DocumentAssignment(doc, uuid, active, label,
                     provenance, status, negated, trainable, conf, created,
                     updated, userID, judgments);
             }
         }
 
-        Assignment(Document doc, UUID uuid, boolean active, String taskName,
-              String labelName, Provenance provenance, String status,
+        Assignment(DocumentContent doc, UUID uuid, boolean active,
+              Label label, Provenance provenance, String status,
               boolean negativeExample, boolean trainable, double confidence,
               Date createdAt, Date updatedAt, UUID userID,
               List<JsonObject> judgments) {
             super(uuid, active, createdAt, updatedAt, userID);
-            this.document = doc;
-            this.taskName = taskName;
-            this.labelName = labelName;
+            this.document = (doc instanceof Document) ? (Document)doc : null;
+            this.label = label;
             this.provenance = provenance;
             this.status = status;
             this.negativeExample = negativeExample;
@@ -361,14 +375,14 @@ public abstract class Annotation {
      * Simple marker subclass for Assignments that classify an entire Document.
      */
     public static class DocumentAssignment extends Assignment {
-        DocumentAssignment(Document doc, UUID uuid, boolean active,
-              String taskName, String labelName, Provenance provenance,
-              String status, boolean negativeExample, boolean trainable,
-              double confidence, Date createdAt, Date updatedAt, UUID userID,
+        DocumentAssignment(DocumentContent doc, UUID uuid, boolean active,
+              Label label, Provenance provenance, String status,
+              boolean negativeExample, boolean trainable, double confidence,
+              Date createdAt, Date updatedAt, UUID userID,
               List<JsonObject> judgments) {
-            super(doc, uuid, active, taskName, labelName, provenance, status,
-                  negativeExample, trainable, confidence, createdAt,
-                  updatedAt, userID, judgments);
+            super(doc, uuid, active, label, provenance, status, negativeExample,
+                  trainable, confidence, createdAt, updatedAt, userID,
+                  judgments);
         }
     }
 
@@ -390,21 +404,25 @@ public abstract class Annotation {
          * Returns the text that is included in the span.
          */
         public String getText() throws IOException {
-            String content = this.document.getContent();
+            String content = _content.getContent();
             return content.substring(this.offset, this.offset + this.length);
         }
 
-        SpanAssignment(Document doc, UUID uuid, boolean active, String taskName,
-              String labelName, Provenance provenance, String status,
+        SpanAssignment(DocumentContent doc, UUID uuid, boolean active,
+              Label label, Provenance provenance, String status,
               boolean negativeExample, boolean trainable, double confidence,
               Date createdAt, Date updatedAt, UUID userID, int offset,
               int length, List<JsonObject> judgments) {
-            super(doc, uuid, active, taskName, labelName, provenance, status,
-                  negativeExample, trainable, confidence, createdAt,
-                  updatedAt, userID, judgments);
+            super(doc, uuid, active, label, provenance, status, negativeExample,
+                  trainable, confidence, createdAt, updatedAt, userID,
+                  judgments);
             this.offset = offset;
             this.length = length;
+            _content = doc;
         }
+
+        // keep the original DocumentContent around if it isn't a Document
+        private final DocumentContent _content;
     }
 
     /**

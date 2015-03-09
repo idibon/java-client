@@ -115,7 +115,8 @@ public class Collection extends IdibonHash {
         if (!(other instanceof Collection)) return false;
 
         Collection c = (Collection)other;
-        return c.getInterface().equals(getInterface()) &&
+        return (c.getInterface() == getInterface() ||
+                c.getInterface().equals(getInterface())) &&
             c.getEndpoint().equals(getEndpoint());
     }
 
