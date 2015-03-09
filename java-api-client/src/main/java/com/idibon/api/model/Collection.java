@@ -5,6 +5,7 @@ package com.idibon.api.model;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import com.idibon.api.http.*;
@@ -62,6 +63,26 @@ public class Collection extends IdibonHash {
     }
 
     /**
+     * Uploads new content to the API
+     */
+    public void addDocuments(Iterable<? extends DocumentContent> documents)
+          throws IOException {
+        addDocuments(documents.iterator());
+    }
+
+    /**
+     * Uploads new content to the API
+     */
+    public void addDocuments(Iterator<? extends DocumentContent> documents)
+          throws IOException {
+        PostDocumentsIterator uploader =
+            new PostDocumentsIterator(this, documents);
+        // consume the entire list to make sure everything has uploaded
+        while (uploader.hasNext())
+            uploader.next();
+    }
+
+    /**
      * Returns a Task instance for the named task.
      */
     public Task task(String name) {
@@ -87,6 +108,19 @@ public class Collection extends IdibonHash {
         super.invalidate();
         _cachedTasks = null;
         return this;
+    }
+
+    @Override public boolean equals(Object other) {
+        if (other == this) return true;
+        if (!(other instanceof Collection)) return false;
+
+        Collection c = (Collection)other;
+        return c.getInterface().equals(getInterface()) &&
+            c.getEndpoint().equals(getEndpoint());
+    }
+
+    @Override public int hashCode() {
+        return getEndpoint().hashCode();
     }
 
     /**

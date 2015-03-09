@@ -3,6 +3,8 @@
  */
 package com.idibon.api.model;
 
+import java.io.IOException;
+
 import java.util.*;
 import javax.json.*;
 import java.text.SimpleDateFormat;
@@ -41,6 +43,100 @@ final class Util {
     }
 
     /**
+     * Creates a JsonObject from DocumentContent
+     *
+     * @param doc The document content that should be uploaded.
+     * @return JSON payload to send to the server.
+     */
+    static JsonObject toJson(DocumentContent doc) throws IOException {
+        JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+
+        if (doc instanceof DocumentContent.Named) {
+            bldr.add(Document.Keys.name.name(),
+                     ((DocumentContent.Named)doc).getName());
+        }
+
+        bldr.add(Document.Keys.content.name(), doc.getContent());
+        JsonObject metadata = doc.getMetadata();
+        if (metadata != null) bldr.add(Document.Keys.metadata.name(), metadata);
+
+        if (doc instanceof DocumentContent.Annotated) {
+            List<? extends Annotation> anns =
+                ((DocumentContent.Annotated)doc).getAnnotations();
+
+            JsonArrayBuilder array = JSON_BF.createArrayBuilder();
+            for (Annotation ann : anns) array.add(toJson(ann));
+            bldr.add(Document.Keys.annotations.name(), array);
+        }
+
+        return bldr.build();
+    }
+
+    /**
+     * Creates a JsonObject from an Annotation
+     *
+     * @param ann An annotation instance, either a new annotation (no UUID)
+     *            to create on the API, or an existing annotation to update.
+     * @return JSON payload to send to server.
+     */
+    static JsonObject toJson(Annotation ann) throws IOException {
+        JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+        bldr.add(Annotation.Keys.is_active.name(), ann.active);
+
+        if (ann.uuid != null)
+            bldr.add(Annotation.Keys.uuid.name(), ann.uuid.toString());
+        if (ann.userID != null)
+            bldr.add(Annotation.Keys.user_id.name(), ann.userID.toString());
+
+        if (ann instanceof Annotation.Assignment)
+            return toJson(bldr, (Annotation.Assignment)ann);
+        else if (ann instanceof Annotation.Judgment)
+            return toJson(bldr, (Annotation.Judgment)ann);
+        else
+            throw new IllegalArgumentException("Invalid annotation class");
+    }
+
+    /**
+     * Generate a JSON payload for an assignment annotation
+     */
+    private static JsonObject toJson(JsonObjectBuilder bldr,
+          Annotation.Assignment ann) throws IOException {
+        /* the API accepts flat task / label names as well as JSON hashes
+         * with a "name" key. use the flat format here. */
+        bldr.add(Annotation.Keys.task.name(), ann.taskName);
+        bldr.add(Annotation.Keys.label.name(), ann.labelName);
+        bldr.add(Annotation.Keys.provenance.name(), ann.provenance.name());
+        bldr.add(Annotation.Keys.is_negated.name(), ann.negativeExample);
+        bldr.add(Annotation.Keys.is_trainable.name(), ann.trainable);
+        if (!Double.isNaN(ann.confidence))
+            bldr.add(Annotation.Keys.confidence.name(), ann.confidence);
+
+        if (ann instanceof Annotation.SpanAssignment) {
+            Annotation.SpanAssignment span = (Annotation.SpanAssignment)ann;
+            bldr.add(Annotation.Keys.offset.name(), span.offset);
+            bldr.add(Annotation.Keys.length.name(), span.length);
+            bldr.add(Annotation.Keys.text.name(), span.getText());
+        }
+
+        return bldr.build();
+    }
+
+    /**
+     * Generate a JSON payload for a judgment annotation
+     */
+    private static JsonObject toJson(JsonObjectBuilder bldr,
+          Annotation.Judgment ann) {
+        if (ann.assignment.uuid == null)
+            throw new IllegalStateException("Can't judge uncommitted assignment");
+
+        bldr.add(Annotation.Keys.subject_id.name(),
+                 ann.assignment.uuid.toString());
+
+        bldr.add(Annotation.Keys.is_negated.name(), ann.disagreement);
+        return bldr.build();
+    }
+
+    /**
      * Expands a compacted JSON hash of document data into standard form.
      *
      * @param compact The original, compact document.
@@ -65,6 +161,94 @@ final class Util {
     }
 
     /**
+     * Estimates the size of a JSON value.
+     *
+     * When large batches are transmitted, it is important to limit the batch
+     * size to avoid transmission errors. This routine will estimate (generally
+     * under-estimate) the size of a JSON value so that batch generators have
+     * an idea when to stop.
+     */
+    static long estimateSizeOfJson(JsonValue json) {
+        if (json instanceof JsonArray) {
+            // 2 for the square brackets
+            return estimateSizeOfJson((JsonArray)json);
+        } else if (json instanceof JsonString) {
+            return estimateSizeOfJson((JsonString)json);
+        } else if (json instanceof JsonObject) {
+            // 2 for the curly braces
+            return estimateSizeOfJson((JsonObject)json);
+        } else if (json instanceof JsonNumber) {
+            // really rough estimate for typical size of int vs double, etc.
+            return 7;
+        } else if (json == JsonValue.TRUE) {
+            return 4;
+        } else if (json == JsonValue.FALSE) {
+            return 5;
+        } else if (json == JsonValue.NULL || json == null) {
+            return 4;
+        } else {
+            throw new UnsupportedOperationException("Unknown value type");
+        }
+    }
+
+    /**
+     * Estimate the size of a JSON-serialized hash
+     */
+    private static long estimateSizeOfJson(JsonObject hash) {
+        long sizeOf = 2; // curly braces
+        for (Map.Entry<String, JsonValue> entry : hash.entrySet()) {
+            sizeOf += 3; // quotes for the key and the colon separator
+            /* assume (incorrectly, but true more often than not) that
+             * keys are only ASCII code points */
+            sizeOf += entry.getKey().length();
+            sizeOf += estimateSizeOfJson(entry.getValue());
+        }
+        return sizeOf + Math.max(0, hash.size() - 1); // comma separators
+    }
+
+    /**
+     * Estimate the size of a JSON-serialized array
+     */
+    private static long estimateSizeOfJson(JsonArray array) {
+        long sizeOf = 2;   // square brackets
+        for (JsonValue v : array) sizeOf += estimateSizeOfJson(v);
+        return sizeOf + Math.max(0, array.size() - 1); // comma separators
+    }
+
+    /**
+     * Estimate the size of a JSON-serialized string
+     */
+    private static long estimateSizeOfJson(JsonString string) {
+        return 2 + jsonUtf8SizeOf(string.getChars()); // double quotes
+    }
+
+    /**
+     * Compute the size of a String in UTF-8 encoded bytes.
+     *
+     * Surrogate pairs need special handling, because they are terrib\b\b\b\b\b
+     * encoded as 6-character escapes, other then that the table is just a
+     * mapping of unicode code point to the number of bytes in the UTF-8
+     * encoding of code points in that range.
+     */
+    private static long jsonUtf8SizeOf(CharSequence seq) {
+        long sizeOf = 0;
+        for (int i = 0; i < seq.length(); i++) {
+            // determine the UTF-8 encoded size of the string
+            char ch = seq.charAt(i);
+            if (ch < 0x80) sizeOf += 1;
+            // most european characters
+            else if (ch < 0x800) sizeOf += 2;
+            // low surrogate pairs
+            else if (ch >= 0xd800 && ch <= 0xdbff) sizeOf += 6;
+            // high surrogate pairs
+            else if (ch >= 0xdc00 && ch <= 0xdfff) sizeOf += 6;
+            // ideographs and other code points < 0x10000
+            else sizeOf += 3;
+        }
+        return sizeOf;
+    }
+
+    /**
      * Parses an ISO-8601-formatted string into a Java Date instance.
      */
     static Date parseDate(String iso8601) {
@@ -82,6 +266,9 @@ final class Util {
      * Common JsonReaderFactory for this package.
      */
     static final JsonBuilderFactory JSON_BF = Json.createBuilderFactory(null);
+
+    static final JsonObject EMPTY_JSON_OBJECT =
+        JSON_BF.createObjectBuilder().build();
 
     /**
      * Expands a compacted JSON hash for an annotation into standard form.

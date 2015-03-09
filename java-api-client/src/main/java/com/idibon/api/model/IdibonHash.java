@@ -42,6 +42,13 @@ public abstract class IdibonHash {
     }
 
     /**
+     * Returns true if all of the data for the object has been loaded
+     */
+    public boolean isLoaded() {
+        return _jsonFuture != null && _jsonFuture.isDone();
+    }
+
+    /**
      * Returns a percent-encoded string suitable for use in URL paths.
      *
      * @param str String to encode

@@ -111,8 +111,8 @@ public class Task extends IdibonHash {
      *        DocumentPrediction.class for document-scope tasks,
      *        SpanPrediction.class for span-scope tasks.
      */
-    public <T extends Prediction> Iterable<T> predictions(
-            Iterable<? extends Predictable> items, Class<T> predictClass) {
+    public <T extends Prediction> PredictionIterable<T> predictions(
+            Iterable<? extends DocumentContent> items, Class<T> predictClass) {
         return new PredictionIterable<T>(predictClass, this, items);
     }
 
@@ -123,10 +123,18 @@ public class Task extends IdibonHash {
      *
      * @param items Items to predict
      */
-    public Iterable<DocumentPrediction> classifications(
-            Iterable<? extends Predictable> items) {
+    public PredictionIterable<DocumentPrediction> classifications(
+            Iterable<? extends DocumentContent> items) {
         return new PredictionIterable<DocumentPrediction>(
           DocumentPrediction.class, this, items);
+    }
+
+    /**
+     * Create a label instance for a label with the provided name in
+     * the current task.
+     */
+    public Label label(String name) {
+        return Label.instance(this, name);
     }
 
     /**
@@ -156,6 +164,26 @@ public class Task extends IdibonHash {
      */
     public String getName() {
         return _name;
+    }
+
+    /**
+     * Returns the Collection that this task is a member of
+     */
+    public Collection getCollection() {
+        return _parent;
+    }
+
+    @Override public boolean equals(Object other) {
+        if (other == this) return true;
+        if (!(other instanceof Task)) return false;
+
+        Task t = (Task)other;
+        return t.getName().equals(_name) &&
+            t.getCollection().equals(_parent);
+    }
+
+    @Override public int hashCode() {
+        return _name.hashCode();
     }
 
     static Task instance(Collection parent, String name) {

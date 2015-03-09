@@ -23,10 +23,17 @@ import static java.net.HttpURLConnection.*;
  */
 public class JdkHttpInterface implements HttpInterface {
 
+    /**
+     * Idibon production API server
+     */
     public static final String IDIBON_API = "https://api.idibon.com/";
 
     /**
      * Configure the scheme, host name, and port of the Idibon API server.
+     *
+     * @param serverAddress Fully qualified address, including scheme, of the
+     *        API server to use. e.g., https://api.idibon.com/
+     * @return this
      */
     public JdkHttpInterface forServer(String serverAddress)
         throws MalformedURLException {
@@ -50,7 +57,32 @@ public class JdkHttpInterface implements HttpInterface {
     }
 
     /**
+     * Configure the maximum number of parallel connection.
+     *
+     * Reconfigures the interface to use more (or fewer) connections. Can be
+     * changed dynamically as needed by the application.
+     *
+     * @param limit The new number of parallel connections. Must be between
+     *        1 - 50.
+     * @return this
+     */
+    public JdkHttpInterface maxConnections(int limit) {
+        if (limit <= 0 || limit > 50)
+            throw new IllegalArgumentException("Invalid connection limit");
+
+        if (_threadPool.isShutdown() || _threadPool.isTerminating())
+            throw new IllegalStateException("Already shut down");
+
+        System.setProperty("http.maxConnections", Integer.toString(limit));
+        _threadPool.setCorePoolSize(limit);
+        _threadPool.setMaximumPoolSize(limit);
+        return this;
+    }
+
+    /**
      * Disable SSL hostname validation for HTTPS API servers.
+     *
+     * @return this
      */
     public JdkHttpInterface withoutHostnameValidation() {
         _hostnameValidation = false;
@@ -59,6 +91,9 @@ public class JdkHttpInterface implements HttpInterface {
 
     /**
      * Configure HTTP BASIC Authentication
+     *
+     * @param apiKey Idibon API key.
+     * @return this
      */
     public JdkHttpInterface withApiKey(String apiKey) {
         _apiKey = apiKey;
@@ -123,6 +158,8 @@ public class JdkHttpInterface implements HttpInterface {
 
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#shutdown(long)}
+     *
+     * @param quiesceTime Time to wait for the connections to become idle
      */
     public void shutdown(long quiesceTime) {
         _threadPool.shutdown();
@@ -141,6 +178,9 @@ public class JdkHttpInterface implements HttpInterface {
      * Reads the HTTP response from the server and parses the embedded JSON.
      * If the response uses chunked encoding, each of the chunks will be
      * parsed and added to an array
+     *
+     * @param conn HttpURLConnection instance that has data to read
+     * @return A JsonValue containing the parsed data from the connection
      */
     private JsonValue maybeHandleChunkedInput(HttpURLConnection conn)
         throws IOException {
@@ -337,8 +377,9 @@ public class JdkHttpInterface implements HttpInterface {
 
     /// Asynchronous execution threads for FutureTasks
     private final ThreadPoolExecutor _threadPool =
-        new ThreadPoolExecutor(3, 8, 20, TimeUnit.SECONDS,
-                               new LinkedBlockingQueue<Runnable>());
+        new ThreadPoolExecutor(DEFAULT_CONNECTION_LIMIT,
+            DEFAULT_CONNECTION_LIMIT, 20, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<Runnable>());
 
     /// Base-64 encoding table
     private static final String BASE64_TABLE =
@@ -355,6 +396,16 @@ public class JdkHttpInterface implements HttpInterface {
             return true;
         }
       };
+
+    /* use up to 10 parallel connections by default. this provides a decent
+     * level of performance with a low overhead, but can be increased if more
+     * performance is needed. */
+    private static final int DEFAULT_CONNECTION_LIMIT = 10;
+
+    static {
+        System.setProperty("http.maxConnections",
+                           Integer.toString(DEFAULT_CONNECTION_LIMIT));
+    }
 
     /**
      * HTTP operation with result.

@@ -18,5 +18,6 @@
    <modules>
        <module>java-api-client</module>
        <module>examples/list-documents</module>
+       <module>examples/upload-json-documents</module>
    </modules>
 </project>

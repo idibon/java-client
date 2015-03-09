@@ -5,7 +5,9 @@ package com.idibon.api.model;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Future;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 
 import com.idibon.api.http.*;
 import javax.json.*;
@@ -15,7 +17,8 @@ import static com.idibon.api.model.Util.*;
 /**
  * A Document is the basic unit of content in a Collection
  */
-public class Document extends IdibonHash implements Predictable {
+public class Document extends IdibonHash
+      implements DocumentContent.Annotated, DocumentContent.Named {
 
     /**
      * Keys in the JSON hash. Some keys may not be present, depending
@@ -86,6 +89,13 @@ public class Document extends IdibonHash implements Predictable {
     }
 
     /**
+     * Returns the collection where this document is stored.
+     */
+    public Collection getCollection() {
+        return _parent;
+    }
+
+    /**
      * Returns the document UUID
      */
     public UUID getUUID() throws IOException {
@@ -122,10 +132,104 @@ public class Document extends IdibonHash implements Predictable {
     }
 
     /**
-     * Returns a body with {"document":"name"}
+     * Returns the document content.
      */
-    public JsonObject createPredictionRequest() {
-        return JSON_BF.createObjectBuilder().add("document", getName()).build();
+    public String getContent() throws IOException {
+        return getJson().getString(Keys.content.name());
+    }
+
+    /**
+     * Returns the metadata associated with this document
+     */
+    public JsonObject getMetadata() throws IOException {
+        return getJson().getJsonObject(Keys.metadata.name());
+    }
+
+    /**
+     * Synchronously deletes this document.
+     */
+    public void delete() throws IOException {
+        Throwable cause = null;
+        try {
+            deleteAsync().get();
+        } catch (ExecutionException ex) {
+            cause = ex.getCause();
+        } catch (InterruptedException ex) {
+            cause = ex;
+        }
+
+        if (cause instanceof IOException)
+            throw (IOException)cause;
+        else if (cause != null)
+            throw new IOException("Unable to delete " + getName(), cause);
+    }
+
+    /**
+     * Schedules this document for deletion, and returns a Future that will
+     * complete after the document is deleted.
+     */
+    public Future<JsonValue> deleteAsync() throws IOException {
+        return _httpIntf.httpDelete(getEndpoint(), EMPTY_JSON_OBJECT);
+    }
+
+    /**
+     * Returns the annotations on this document
+     */
+    @SuppressWarnings("unchecked")
+    public List<? extends Annotation> getAnnotations() throws IOException {
+        List<Annotation> annotations =
+            (List<Annotation>)_jsonCache.get(Keys.annotations);
+
+        if (annotations != null)
+            return annotations;
+
+        JsonArray jsonAnns = getJson().getJsonArray(Keys.annotations.name());
+        if (jsonAnns == null || jsonAnns.isEmpty())
+            return Collections.EMPTY_LIST;
+
+        annotations = new ArrayList<>(jsonAnns.size());
+
+        /* map of annotation subject ID to the annotations referencing it.
+         * since subject_id may also include document IDs, this isn't
+         * sufficient to determine if an annotation is an assignment or
+         * a judgment */
+        Map<String, List<JsonObject>> judgments = new HashMap<>();
+
+        /* keep track of actual annotations. if an annotation has a subject
+         * ID, and the subject ID is in this set of UUIDs, then the annotation
+         * is a judgment. */
+        Set<String> annUUIDs = new HashSet<>();
+
+        for (JsonObject ann :jsonAnns.getValuesAs(JsonObject.class)) {
+            annUUIDs.add(ann.getString(Annotation.Keys.uuid.name()));
+            String sub = ann.getString(Annotation.Keys.subject_id.name(), null);
+            if (sub != null) {
+                List<JsonObject> list = judgments.get(sub);
+                if (list == null) {
+                    list = new ArrayList<JsonObject>();
+                    judgments.put(sub, list);
+                }
+                list.add(ann);
+            }
+        }
+
+        // iterate over the assignments, and reify Annotation instances
+        for (JsonObject ann : jsonAnns.getValuesAs(JsonObject.class)) {
+            String sub = ann.getString(Annotation.Keys.subject_id.name(), null);
+
+            if (sub != null && annUUIDs.contains(sub)) {
+                // this is a judgment. it will be handled by the assignment
+                continue;
+            }
+
+            String uuid = ann.getString(Annotation.Keys.uuid.name());
+            List<JsonObject> annJudgments = judgments.get(uuid);
+            if (annJudgments == null) annJudgments = Collections.EMPTY_LIST;
+            annotations.add(Annotation.Assignment.parse(this, ann, annJudgments));
+        }
+
+        _jsonCache.put(Keys.annotations, annotations);
+        return annotations;
     }
 
     /**

@@ -6,6 +6,7 @@ package com.idibon.api;
 import java.io.IOException;
 import java.util.*;
 
+import com.idibon.api.http.HttpException;
 import com.idibon.api.http.impl.JdkHttpInterface;
 import com.idibon.api.model.*;
 import com.idibon.api.model.Collection;
@@ -43,12 +44,11 @@ public class IdibonAPI_IT {
     }
 
     @Test public void canReadDocumentNames() throws Exception {
-        // tests the non-streaming, name+date-only mode
+        // tests the non-streaming, name-only mode
         Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
         for (Document d : collection.documents()) {
-            assertThat(d.getJson().getString("content", null), is(nullValue()));
-            assertThat(d.getJson().getString("created_at"), is(not(nullValue())));
+            assertThat(d.isLoaded(), is(false));
             count++;
         }
         assertThat(count, is(75113));
@@ -111,9 +111,10 @@ public class IdibonAPI_IT {
         Collection c = _apiClient.collection("general_sentiment_5pt_scale");
         Task sentiment = c.task("Sentiment");
         List<String> predicted = new ArrayList<String>();
-        for (DocumentPrediction p :
-                 sentiment.classifications(c.documents().first(100))) {
-            predicted.add(p.getPredictableAs(Document.class).getName());
+        for (DocumentPrediction p : sentiment
+                 .classifications(c.documents().first(100))) {
+            predicted.add(p.getRequestedAs(Document.class).getName());
+            assertThat(p.getPredictedConfidences().size(), is(5));
         }
         List<String> expected = new ArrayList<String>();
         for (Document d : c.documents().first(100))
@@ -122,7 +123,77 @@ public class IdibonAPI_IT {
         assertThat(predicted, is(expected));
     }
 
+    @Test public void predictionsCanIncludeFeatures() throws Exception {
+        Collection c = _apiClient.collection("general_sentiment_5pt_scale");
+        Task sentiment = c.task("Sentiment");
+        PredictionIterable<DocumentPrediction> predictions = sentiment
+            .classifications(c.documents().first());
+
+        // first, try without specifying a feature threshold.
+        for (DocumentPrediction p : predictions)
+            assertThat(p.getSignificantFeatures(), is(nullValue()));
+
+        for (DocumentPrediction p : predictions.withSignificantFeatures(0.5)) {
+            Map<Label, List<String>> features = p.getSignificantFeatures();
+            assertThat(features, is(not(nullValue())));
+            assertThat(features.size(), is(not(0)));
+        }
+    }
+
+    @Test public void canUploadAndDeleteDocuments() throws Exception {
+        Collection c = _apiClient.collection("e0db414891d6-test124");
+        List<DocumentContent.Named> content = new ArrayList<>();
+
+        try {
+            content.add(UploadableDoc.named("homer simpson").content("d'oh!"));
+            content.add(UploadableDoc.named("bart simpson").content("eat my shorts!"));
+            c.addDocuments(content);
+
+            // verify that the documents were actually uploaded
+            Document homer = c.document("homer simpson");
+            Document bart = c.document("bart simpson");
+
+            assertThat(homer.getContent(), is("d'oh!"));
+            assertThat(bart.getContent(), is("eat my shorts!"));
+
+        } finally {
+            _apiClient.waitFor(c.document("homer simpson").deleteAsync(),
+                               c.document("bart simpson").deleteAsync());
+        }
+
+        try {
+            c.document("homer simpson").getContent();
+            throw new RuntimeException("Document was not deleted");
+        } catch (HttpException.NotFound _) {
+            // ignore. the document should not be found
+        }
+    }
+
     @AfterClass public static void shutdown() {
         _apiClient.shutdown(0);
+    }
+
+    private static class UploadableDoc implements DocumentContent.Named {
+        public UploadableDoc name(String name) {
+            _name = name;
+            return this;
+        }
+
+        public UploadableDoc content(String content) {
+            _content = content;
+            return this;
+        }
+
+        public String getName() { return _name; }
+        public String getContent() { return _content; }
+        public JsonObject getMetadata() { return _metadata; }
+
+        private String _name = null;
+        private String _content = null;
+        private JsonObject _metadata = null;
+
+        public static UploadableDoc named(String name) {
+            return new UploadableDoc().name(name);
+        }
     }
 }
