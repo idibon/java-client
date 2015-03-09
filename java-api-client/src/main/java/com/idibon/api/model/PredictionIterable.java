@@ -19,6 +19,11 @@ import static com.idibon.api.model.Util.JSON_BF;
  */
 public class PredictionIterable<T extends Prediction> implements Iterable<T> {
 
+    /**
+     * Default feature threshold. Returns moderate-strongly predictive features
+     */
+    public static final double DEFAULT_FEATURE_THRESHOLD = 0.7;
+
     public Iterator<T> iterator() {
         return this.new Iter();
     }
@@ -27,10 +32,14 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
      * Returns the key words and phrases from the document content that
      * affected the prediction.
      *
+     * This is the same as calling
+     * {@link com.idibon.api.model.PredictionIterable#withSignificantFeatures(Float)}
+     * with a value of DEFAULT_FEATURE_THRESHOLD.
+     *
      * @return This
      */
     public PredictionIterable<T> withSignificantFeatures() {
-        return withSignificantFeatures(0.7);
+        return withSignificantFeatures(DEFAULT_FEATURE_THRESHOLD);
     }
 
     /**
@@ -58,7 +67,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
     private boolean _includeFeatures = false;
 
     // Cutoff threshold for feature significance
-    private double _featureThreshold = 0.7;
+    private double _featureThreshold = DEFAULT_FEATURE_THRESHOLD;
 
     // The task being predicted against
     private final Task _target;
