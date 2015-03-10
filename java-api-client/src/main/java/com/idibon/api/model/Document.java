@@ -181,8 +181,8 @@ public class Document extends IdibonHash
      */
     public AnnotationBuilder.Assignment createAssignment(Label label)
           throws IOException {
-        if (!label.getTask().getScope().equals("span"))
-            throw new IllegalArgumentException("Not a span task");
+        if (!label.getTask().getScope().equals(Task.Scope.document))
+            throw new IllegalArgumentException("Not a document task");
 
         return AnnotationBuilder.Assignment.on(this, label);
     }
@@ -206,7 +206,7 @@ public class Document extends IdibonHash
         if (offset + length >= content.length())
             throw new IndexOutOfBoundsException("illegal span");
 
-        if (!label.getTask().getScope().equals("span"))
+        if (!label.getTask().getScope().equals(Task.Scope.span))
             throw new IllegalArgumentException("Not a span task");
 
         return AnnotationBuilder.Assignment.on(this, offset, length, label);

@@ -339,8 +339,8 @@ public abstract class Annotation {
             boolean negated = body.getBoolean(Keys.is_negated.name());
             boolean trainable = body.getBoolean(Keys.is_trainable.name(), false);
 
-            JsonNumber confJson = body.getJsonNumber(Keys.confidence.name());
-            double conf = confJson == null ? Double.NaN : confJson.doubleValue();
+            JsonNumber json = Util.getJsonNumber(body, Keys.confidence.name());
+            double conf = (json == null)? Double.NaN : json.doubleValue();
 
             Label label = doc.getCollection().task(
                 body.getJsonObject(Keys.task.name()).getString("name")).label(
@@ -358,8 +358,8 @@ public abstract class Annotation {
 
             String status = body.getString(Keys.status.name(), "");
 
-            JsonNumber offset = body.getJsonNumber(Keys.offset.name());
-            JsonNumber length = body.getJsonNumber(Keys.length.name());
+            JsonNumber offset = Util.getJsonNumber(body, Keys.offset.name());
+            JsonNumber length = Util.getJsonNumber(body, Keys.length.name());
 
             if (offset != null) {
                 return new SpanAssignment(doc, uuid, active, label,

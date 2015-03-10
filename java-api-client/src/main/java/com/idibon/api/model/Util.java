@@ -13,6 +13,26 @@ import java.text.ParseException;
 final class Util {
 
     /**
+     * JsonValue.NULL-safe getter for JSON numbers.
+     *
+     * @param object The JSON object to read
+     * @param key The key to read.
+     * @return The JsonNumber at key
+     */
+    static JsonNumber getJsonNumber(JsonObject object, String key) {
+        JsonValue value = object.get(key);
+        if (value instanceof JsonNumber) {
+            return (JsonNumber)value;
+        } else if (value == null || value == JsonValue.NULL) {
+            return null;
+        } else {
+            throw new ClassCastException("Cannot cast " +
+                value.getClass().getName() +
+                " to " + JsonNumber.class.getName());
+        }
+    }
+
+    /**
      * Creates a JsonArray from an array of Java Strings.
      *
      * @param strings Array of strings
