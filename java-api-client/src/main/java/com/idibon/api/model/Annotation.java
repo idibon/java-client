@@ -6,6 +6,7 @@ package com.idibon.api.model;
 import java.io.IOException;
 
 import java.util.*;
+import java.util.concurrent.Future;
 import javax.json.*;
 
 import static com.idibon.api.model.Util.*;
@@ -222,6 +223,13 @@ public abstract class Annotation {
     public final UUID userID;
 
     /**
+     * Deletes this annotation asynchronously.
+     *
+     * @return A Future that stores the return value of the delete operation.
+     */
+    public abstract Future<JsonValue> deleteAsync() throws IOException;
+
+    /**
      * An Assignment annotation. Subclassed to DocumentAssignment and
      * SpanAssignment.
      */
@@ -287,6 +295,21 @@ public abstract class Annotation {
          */
         public AnnotationBuilder.Judgment addJudgment() {
             return AnnotationBuilder.Judgment.on(this);
+        }
+
+        /**
+         * Deletes this annotation asynchronously.
+         *
+         * @return A Future that stores the return value of the delete
+         *         operation.
+         */
+        public Future<JsonValue> deleteAsync() throws IOException {
+            if (document == null || uuid == null)
+                throw new IllegalStateException("Annotation isn't committed");
+
+            return document.getInterface().httpDelete(document.getEndpoint(),
+                JSON_BF.createObjectBuilder()
+                .add("annotation", uuid.toString()).build());
         }
 
         /**
@@ -438,6 +461,22 @@ public abstract class Annotation {
          * When true, the Judgment disagrees with the assignment.
          */
         public final boolean disagreement;
+
+        /**
+         * Deletes this annotation asynchronously.
+         *
+         * @return A Future that stores the return value of the delete
+         *         operation.
+         */
+        public Future<JsonValue> deleteAsync() throws IOException {
+            if (uuid == null)
+                throw new IllegalStateException("Annotation isn't committed");
+
+            return assignment.document.getInterface()
+                .httpDelete(assignment.document.getEndpoint(),
+                    JSON_BF.createObjectBuilder()
+                    .add("annotation", uuid.toString()).build());
+        }
 
         /**
          * Creates a new immutable Judgment instance
