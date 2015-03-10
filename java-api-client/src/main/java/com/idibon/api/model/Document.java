@@ -99,12 +99,12 @@ public class Document extends IdibonHash
      * Returns the document UUID
      */
     public UUID getUUID() throws IOException {
-        UUID uuid = (UUID)_jsonCache.get(Keys.uuid);
+        UUID uuid = (UUID)getCache().get(Keys.uuid);
 
         if (uuid == null) {
             String raw = getJson().getString(Keys.uuid.name(), null);
             uuid = UUID.fromString(raw);
-            _jsonCache.put(Keys.uuid, uuid);
+            getCache().put(Keys.uuid, uuid);
         }
 
         return uuid;
@@ -122,10 +122,10 @@ public class Document extends IdibonHash
             throw new IllegalArgumentException("Not a date key");
         }
 
-        Date date = (Date)_jsonCache.get(dateKey);
+        Date date = (Date)getCache().get(dateKey);
         if (date == null) {
             date = parseDate(getJson().getString(dateKey.name(), null));
-            if (date != null) _jsonCache.put(dateKey, date);
+            if (date != null) getCache().put(dateKey, date);
         }
 
         return date;
@@ -178,14 +178,14 @@ public class Document extends IdibonHash
     @SuppressWarnings("unchecked")
     public List<? extends Annotation> getAnnotations() throws IOException {
         List<Annotation> annotations =
-            (List<Annotation>)_jsonCache.get(Keys.annotations);
+            (List<Annotation>)getCache().get(Keys.annotations);
 
         if (annotations != null)
             return annotations;
 
         JsonArray jsonAnns = getJson().getJsonArray(Keys.annotations.name());
         if (jsonAnns == null || jsonAnns.isEmpty())
-            return Collections.EMPTY_LIST;
+            return Collections.<Annotation>emptyList();
 
         annotations = new ArrayList<>(jsonAnns.size());
 
@@ -228,7 +228,7 @@ public class Document extends IdibonHash
             annotations.add(Annotation.Assignment.parse(this, ann, annJudgments));
         }
 
-        _jsonCache.put(Keys.annotations, annotations);
+        getCache().put(Keys.annotations, annotations);
         return annotations;
     }
 
@@ -246,13 +246,7 @@ public class Document extends IdibonHash
      * Returns the raw JSON data for this Document
      */
     public JsonObject getJson() throws IOException {
-        JsonObject result = super.getJson(null).getJsonObject("document");
-        /* this is racy, but the only negative outcome is that multiple
-         * threads may each instantiate a ConcurrentHashMap, and all but
-         * one of the instances will be GCd immediately. */
-        if (_jsonCache == null)
-            _jsonCache = new ConcurrentHashMap<>();
-        return result;
+        return super.getJson(null).getJsonObject("document");
     }
 
     static Document instance(Collection parent, String name) {
@@ -262,6 +256,22 @@ public class Document extends IdibonHash
     static Document instance(Collection parent, JsonObject obj) {
         String name = obj.getJsonObject("document").getString("name");
         return instance(parent, name).preload(obj);
+    }
+
+    /**
+     * Safely get the cache instance, instantiating one if it doesn't
+     * already exist.
+     */
+    private Map<Keys, Object> getCache() {
+        /* this is racy, but the only negative outcome is that multiple
+         * threads may each instantiate a ConcurrentHashMap, and all but
+         * one of the instances will be GCd immediately. */
+        Map<Keys, Object> map = _jsonCache;
+        if (map == null) {
+            map = new ConcurrentHashMap<>();
+            _jsonCache = map;
+        }
+        return map;
     }
 
     private Document(String name, Collection parent, HttpInterface httpIntf) {

@@ -46,4 +46,28 @@ public class UtilTest {
         JsonObject obj = Json.createReader(new StringReader(json)).readObject();
         assertThat(((Long)method.invoke(null, obj)).longValue(), is(48L));
     }
+
+    @Test public void testExpandAnnotation() throws Exception {
+        java.lang.reflect.Method method = Util.class.
+            getDeclaredMethod("expandAnnotation", JsonObject.class);
+        method.setAccessible(true);
+
+        JsonObject compact = Json.createObjectBuilder()
+            .add("a", "00000000-0000-0000-0000-000000000000")
+            .add("b", "task-name")
+            .add("c", "label-name")
+            .add("d", 10)
+            .add("e", 5)
+            .add("j", true)
+            .add("m", "Human")
+            .add("p", "final")
+            .add("y", false).build();
+
+        JsonObject expand = (JsonObject)method.invoke(null, compact);
+        assertThat(expand.getJsonObject("task").getString("name"), is("task-name"));
+        assertThat(expand.getJsonObject("label").getString("name"), is("label-name"));
+        assertThat(expand.getString("provenance"), is("Human"));
+        assertThat(expand.getJsonNumber("length").intValue(), is(5));
+        assertThat(expand.getBoolean("is_negated"), is(false));
+    }
 }

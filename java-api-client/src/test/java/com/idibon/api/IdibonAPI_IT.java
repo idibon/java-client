@@ -18,6 +18,7 @@ import org.junit.*;
 import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
 import static com.idibon.api.model.DocumentSearcher.ReturnData.*;
+import static com.idibon.api.model.DocumentAnnotationQuery.forTasks;
 
 public class IdibonAPI_IT {
 
@@ -74,6 +75,18 @@ public class IdibonAPI_IT {
             if (count >= 3000) break;
         }
         assertThat(count, is(3000));
+    }
+
+    @Test public void canReadAnnotations() throws Exception {
+        Collection collection = _apiClient.collection("general_sentiment_5pt_scale");
+        for (Document doc : collection.documents().returning(TaskAnnotations)
+                 .annotated(forTasks("NP_Chunking")).first(5)) {
+            for (Annotation ann : doc.getAnnotations()) {
+                assertThat(ann, is(instanceOf(Annotation.SpanAssignment.class)));
+                Annotation.SpanAssignment assign = (Annotation.SpanAssignment)ann;
+                assertThat(assign.label.getName(), is("NP-Chunk"));
+            }
+        }
     }
 
     @Test public void canLimitDocuments() throws Exception {
