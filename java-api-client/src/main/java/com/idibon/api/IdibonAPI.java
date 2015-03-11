@@ -56,13 +56,13 @@ public class IdibonAPI {
      *
      * @param futures List of operations to synchronize on completion.
      */
-    public void waitFor(Future<JsonValue>... futures) throws IOException {
+    public void waitFor(Future<?>... futures) throws IOException {
         waitFor(Arrays.asList(futures));
     }
 
-    public void waitFor(Iterable<Future<JsonValue>> futures) throws IOException {
+    public void waitFor(Iterable<Future<?>> futures) throws IOException {
         Throwable first = null;
-        for (Future<JsonValue> f : futures) {
+        for (Future<?> f : futures) {
             try {
                 f.get();
             } catch (ExecutionException ex) {

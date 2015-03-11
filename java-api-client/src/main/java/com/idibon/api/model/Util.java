@@ -13,6 +13,26 @@ import java.text.ParseException;
 final class Util {
 
     /**
+     * JsonValue.NULL-safe getter for JSON numbers.
+     *
+     * @param object The JSON object to read
+     * @param key The key to read.
+     * @return The JsonNumber at key
+     */
+    static JsonNumber getJsonNumber(JsonObject object, String key) {
+        JsonValue value = object.get(key);
+        if (value instanceof JsonNumber) {
+            return (JsonNumber)value;
+        } else if (value == null || value == JsonValue.NULL) {
+            return null;
+        } else {
+            throw new ClassCastException("Cannot cast " +
+                value.getClass().getName() +
+                " to " + JsonNumber.class.getName());
+        }
+    }
+
+    /**
      * Creates a JsonArray from an array of Java Strings.
      *
      * @param strings Array of strings
@@ -103,8 +123,8 @@ final class Util {
           Annotation.Assignment ann) throws IOException {
         /* the API accepts flat task / label names as well as JSON hashes
          * with a "name" key. use the flat format here. */
-        bldr.add(Annotation.Keys.task.name(), ann.taskName);
-        bldr.add(Annotation.Keys.label.name(), ann.labelName);
+        bldr.add(Annotation.Keys.task.name(), ann.label.getTask().getName());
+        bldr.add(Annotation.Keys.label.name(), ann.label.getName());
         bldr.add(Annotation.Keys.provenance.name(), ann.provenance.name());
         bldr.add(Annotation.Keys.is_negated.name(), ann.negativeExample);
         bldr.add(Annotation.Keys.is_trainable.name(), ann.trainable);
@@ -144,20 +164,24 @@ final class Util {
      */
     static JsonObject expandDocument(JsonObject compact) {
         JsonObjectBuilder expander = JSON_BF.createObjectBuilder();
+        JsonObject doc = compact.getJsonObject("document");
 
-        for (Map.Entry<String, JsonValue> entry : compact.entrySet()) {
+        // copy over all of the non-annotation keys to the new document
+        for (Map.Entry<String, JsonValue> entry : doc.entrySet()) {
             if (!entry.getKey().equals(Document.Keys.annotations.name()))
                 expander.add(entry.getKey(), entry.getValue());
         }
 
-        JsonArray anns = compact.getJsonArray(Document.Keys.annotations.name());
+        // expand all of the annotations
+        JsonArray anns = doc.getJsonArray(Document.Keys.annotations.name());
         if (anns != null) {
             JsonArrayBuilder arr = JSON_BF.createArrayBuilder();
             for (JsonValue a : anns) arr.add(expandAnnotation((JsonObject)a));
             expander.add(Document.Keys.annotations.name(), arr);
         }
 
-        return expander.build();
+        return JSON_BF.createObjectBuilder()
+            .add("document", expander.build()).build();
     }
 
     /**
@@ -256,7 +280,7 @@ final class Util {
         /* SimpleDateFormat doesn't handle time zones so well; fortunately
          * we only need to worry about Zulu */
         try {
-            return FORMATTER_CACHE.get().parse(iso8601.replace("Z", "+00:00"));
+            return FORMATTER_CACHE.get().parse(iso8601.replace("Z", "GMT+00:00"));
         } catch (ParseException ex) {
             throw new IllegalStateException("Invalid date in document", ex);
         }
@@ -281,9 +305,24 @@ final class Util {
         JsonObjectBuilder expander = JSON_BF.createObjectBuilder();
         for (Map.Entry<String, JsonValue> entry : compact.entrySet()) {
             Annotation.Keys annKey = COMPACT_ANN_KEYS.get(entry.getKey());
-            expander.add(annKey.name(), entry.getValue());
+            if (isAnnotationObjectNameKey(annKey)) {
+                expander.add(annKey.name(), JSON_BF.createObjectBuilder()
+                             .add("name", entry.getValue()).build());
+            } else {
+                expander.add(annKey.name(), entry.getValue());
+            }
         }
         return expander.build();
+    }
+
+    /**
+     * Returns true if the annotation key should be an object with a
+     * single sub-key ('name'), rather than a direct-copy of the value.
+     * Helper method for expandAnnotation.
+     */
+    private static boolean isAnnotationObjectNameKey(Annotation.Keys key) {
+        return key == Annotation.Keys.label ||
+            key == Annotation.Keys.task;
     }
 
     // Cache of SimpleDateFormat instances, to avoid re-creation costs

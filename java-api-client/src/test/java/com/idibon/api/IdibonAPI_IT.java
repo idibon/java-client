@@ -17,7 +17,9 @@ import org.junit.*;
 
 import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
+import static com.idibon.api.util.Adapters.buildAnnotations;
 import static com.idibon.api.model.DocumentSearcher.ReturnData.*;
+import static com.idibon.api.model.DocumentAnnotationQuery.forTasks;
 
 public class IdibonAPI_IT {
 
@@ -74,6 +76,18 @@ public class IdibonAPI_IT {
             if (count >= 3000) break;
         }
         assertThat(count, is(3000));
+    }
+
+    @Test public void canReadAnnotations() throws Exception {
+        Collection collection = _apiClient.collection("general_sentiment_5pt_scale");
+        for (Document doc : collection.documents().returning(TaskAnnotations)
+                 .annotated(forTasks("NP_Chunking")).first(5)) {
+            for (Annotation ann : doc.getAnnotations()) {
+                assertThat(ann, is(instanceOf(Annotation.SpanAssignment.class)));
+                Annotation.SpanAssignment assign = (Annotation.SpanAssignment)ann;
+                assertThat(assign.label.getName(), is("NP-Chunk"));
+            }
+        }
     }
 
     @Test public void canLimitDocuments() throws Exception {
@@ -166,6 +180,35 @@ public class IdibonAPI_IT {
             throw new RuntimeException("Document was not deleted");
         } catch (HttpException.NotFound _) {
             // ignore. the document should not be found
+        }
+    }
+
+    @Test public void canCommitAndDeleteAnnotations() throws Exception {
+        Collection c = _apiClient.collection("general_sentiment_5pt_scale");
+        c.addDocuments(Arrays.asList(
+            UploadableDoc.named("homer simpson").content("d'oh")));
+        Document homer = c.document("homer simpson");
+        try {
+            Label l = c.task("Sentiment").label("Negative3");
+            c.commitAnnotations(buildAnnotations(Arrays.asList(
+                homer.createAssignment(l)
+                    .provenance(Annotation.Provenance.Human)
+                    .is(AnnotationBuilder.Assignment.Status.Valid)))
+            );
+            List<? extends Annotation> anns =
+                homer.invalidate().getAnnotations();
+            assertThat(anns, hasSize(1));
+            Annotation check = anns.get(0);
+            assertThat(check, is(instanceOf(Annotation.DocumentAssignment.class)));
+            Annotation.DocumentAssignment assign = (Annotation.DocumentAssignment)check;
+            assertThat(assign.label, is(l));
+            assertThat(assign.document, is(homer));
+
+            _apiClient.waitFor(assign.deleteAsync());
+            anns = homer.invalidate().getAnnotations();
+            assertThat(anns, is(empty()));
+        } finally {
+            _apiClient.waitFor(homer.deleteAsync());
         }
     }
 

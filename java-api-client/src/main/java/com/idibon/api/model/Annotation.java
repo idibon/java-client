@@ -6,6 +6,7 @@ package com.idibon.api.model;
 import java.io.IOException;
 
 import java.util.*;
+import java.util.concurrent.Future;
 import javax.json.*;
 
 import static com.idibon.api.model.Util.*;
@@ -222,25 +223,28 @@ public abstract class Annotation {
     public final UUID userID;
 
     /**
+     * Deletes this annotation asynchronously.
+     *
+     * @return A Future that stores the return value of the delete operation.
+     */
+    public abstract Future<JsonValue> deleteAsync() throws IOException;
+
+    /**
      * An Assignment annotation. Subclassed to DocumentAssignment and
      * SpanAssignment.
      */
     public abstract static class Assignment extends Annotation {
 
         /**
-         * Document that the Assignment applies to.
+         * Document that the Assignment applies to; null if the document does
+         * not exist.
          */
         public final Document document;
 
         /**
-         * Task name that is annotated by this Assignment.
+         * The {@link com.idibon.api.model.Label} assigned by this Assignment.
          */
-        public final String taskName;
-
-        /**
-         * Label name that is annotated by this Assignment.
-         */
-        public final String labelName;
+        public final Label label;
 
         /**
          * Annotation provenance, defines the source of the Assignment.
@@ -276,6 +280,39 @@ public abstract class Annotation {
         public final List<? extends Judgment> judgments;
 
         /**
+         * Update the annotation.
+         *
+         * @return An AnnotationBuilder instance to update this annotation.
+         */
+        public AnnotationBuilder.Assignment update() {
+            return AnnotationBuilder.Assignment.update(this);
+        }
+
+        /**
+         * Add a judgment to this assignment.
+         *
+         * @return An AnnotationBuilder instance to configure a new judgment.
+         */
+        public AnnotationBuilder.Judgment addJudgment() {
+            return AnnotationBuilder.Judgment.on(this);
+        }
+
+        /**
+         * Deletes this annotation asynchronously.
+         *
+         * @return A Future that stores the return value of the delete
+         *         operation.
+         */
+        public Future<JsonValue> deleteAsync() throws IOException {
+            if (document == null || uuid == null)
+                throw new IllegalStateException("Annotation isn't committed");
+
+            return document.getInterface().httpDelete(document.getEndpoint(),
+                JSON_BF.createObjectBuilder()
+                .add("annotation", uuid.toString()).build());
+        }
+
+        /**
          * Reads an Assignment from a JSON payload
          *
          * @param doc The Document that the Assignment is annotating
@@ -302,11 +339,12 @@ public abstract class Annotation {
             boolean negated = body.getBoolean(Keys.is_negated.name());
             boolean trainable = body.getBoolean(Keys.is_trainable.name(), false);
 
-            JsonNumber confJson = body.getJsonNumber(Keys.confidence.name());
-            double conf = confJson == null ? Double.NaN : confJson.doubleValue();
+            JsonNumber json = Util.getJsonNumber(body, Keys.confidence.name());
+            double conf = (json == null)? Double.NaN : json.doubleValue();
 
-            String label = body.getJsonObject(Keys.label.name()).getString("name");
-            String task = body.getJsonObject(Keys.task.name()).getString("task");
+            Label label = doc.getCollection().task(
+                body.getJsonObject(Keys.task.name()).getString("name")).label(
+                body.getJsonObject(Keys.label.name()).getString("name"));
 
             Provenance provenance;
 
@@ -320,30 +358,29 @@ public abstract class Annotation {
 
             String status = body.getString(Keys.status.name(), "");
 
-            JsonNumber offset = body.getJsonNumber(Keys.offset.name());
-            JsonNumber length = body.getJsonNumber(Keys.length.name());
+            JsonNumber offset = Util.getJsonNumber(body, Keys.offset.name());
+            JsonNumber length = Util.getJsonNumber(body, Keys.length.name());
 
             if (offset != null) {
-                return new SpanAssignment(doc, uuid, active, task, label,
+                return new SpanAssignment(doc, uuid, active, label,
                     provenance, status, negated, trainable, conf, created,
                     updated, userID, offset.intValue(), length.intValue(),
                     judgments);
             } else {
-                return new DocumentAssignment(doc, uuid, active, task, label,
+                return new DocumentAssignment(doc, uuid, active, label,
                     provenance, status, negated, trainable, conf, created,
                     updated, userID, judgments);
             }
         }
 
-        Assignment(Document doc, UUID uuid, boolean active, String taskName,
-              String labelName, Provenance provenance, String status,
+        Assignment(DocumentContent doc, UUID uuid, boolean active,
+              Label label, Provenance provenance, String status,
               boolean negativeExample, boolean trainable, double confidence,
               Date createdAt, Date updatedAt, UUID userID,
               List<JsonObject> judgments) {
             super(uuid, active, createdAt, updatedAt, userID);
-            this.document = doc;
-            this.taskName = taskName;
-            this.labelName = labelName;
+            this.document = (doc instanceof Document) ? (Document)doc : null;
+            this.label = label;
             this.provenance = provenance;
             this.status = status;
             this.negativeExample = negativeExample;
@@ -361,14 +398,14 @@ public abstract class Annotation {
      * Simple marker subclass for Assignments that classify an entire Document.
      */
     public static class DocumentAssignment extends Assignment {
-        DocumentAssignment(Document doc, UUID uuid, boolean active,
-              String taskName, String labelName, Provenance provenance,
-              String status, boolean negativeExample, boolean trainable,
-              double confidence, Date createdAt, Date updatedAt, UUID userID,
+        DocumentAssignment(DocumentContent doc, UUID uuid, boolean active,
+              Label label, Provenance provenance, String status,
+              boolean negativeExample, boolean trainable, double confidence,
+              Date createdAt, Date updatedAt, UUID userID,
               List<JsonObject> judgments) {
-            super(doc, uuid, active, taskName, labelName, provenance, status,
-                  negativeExample, trainable, confidence, createdAt,
-                  updatedAt, userID, judgments);
+            super(doc, uuid, active, label, provenance, status, negativeExample,
+                  trainable, confidence, createdAt, updatedAt, userID,
+                  judgments);
         }
     }
 
@@ -390,21 +427,25 @@ public abstract class Annotation {
          * Returns the text that is included in the span.
          */
         public String getText() throws IOException {
-            String content = this.document.getContent();
+            String content = _content.getContent();
             return content.substring(this.offset, this.offset + this.length);
         }
 
-        SpanAssignment(Document doc, UUID uuid, boolean active, String taskName,
-              String labelName, Provenance provenance, String status,
+        SpanAssignment(DocumentContent doc, UUID uuid, boolean active,
+              Label label, Provenance provenance, String status,
               boolean negativeExample, boolean trainable, double confidence,
               Date createdAt, Date updatedAt, UUID userID, int offset,
               int length, List<JsonObject> judgments) {
-            super(doc, uuid, active, taskName, labelName, provenance, status,
-                  negativeExample, trainable, confidence, createdAt,
-                  updatedAt, userID, judgments);
+            super(doc, uuid, active, label, provenance, status, negativeExample,
+                  trainable, confidence, createdAt, updatedAt, userID,
+                  judgments);
             this.offset = offset;
             this.length = length;
+            _content = doc;
         }
+
+        // keep the original DocumentContent around if it isn't a Document
+        private final DocumentContent _content;
     }
 
     /**
@@ -420,6 +461,22 @@ public abstract class Annotation {
          * When true, the Judgment disagrees with the assignment.
          */
         public final boolean disagreement;
+
+        /**
+         * Deletes this annotation asynchronously.
+         *
+         * @return A Future that stores the return value of the delete
+         *         operation.
+         */
+        public Future<JsonValue> deleteAsync() throws IOException {
+            if (uuid == null)
+                throw new IllegalStateException("Annotation isn't committed");
+
+            return assignment.document.getInterface()
+                .httpDelete(assignment.document.getEndpoint(),
+                    JSON_BF.createObjectBuilder()
+                    .add("annotation", uuid.toString()).build());
+        }
 
         /**
          * Creates a new immutable Judgment instance

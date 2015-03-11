@@ -31,6 +31,7 @@ Name|Description
 --------|--------
 [list-documents](#list-documents)|Lists all of the document names in a collection
 [upload-json-documents](#upload-json-documents)|Upload one or more JSON documents to a collection
+[annotate-document](#annotate-document)|Add an assignment annotation for a document-scope task to a document
 
 ### <a name="list-documents">list-documents Example App</a>
 
@@ -66,3 +67,18 @@ JSON files should have the following structure:
 * `$METADATA` should be a JSON object of metadata for the document. Any metadata may be submitted, there are no restrictions or expectations about the data that is included. If no metadata is needed, this key can be excluded.
 
 * `$NAME` should be a String. It is optional; if present, the document will be created using the provided name.
+
+### <a name="annotate-document">annotate-document Example App</a>
+
+To run
+```
+cd examples/annotate-document/target
+java -cp annotate-document-0.1.0-SNAPSHOT-jar-with-dependencies.jar \
+  com.idibon.AnnotateDocument $API_KEY $COLLECTION $DOCUMENT $TASK $LABEL
+```
+
+* `$DOCUMENT` should be the name of a document inside `$COLLECTION`
+
+* `$TASK` should be the name of a document-scope task inside `$COLLECTION`
+
+* `$LABEL` should be the name of a label within `$TASK`
