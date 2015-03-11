@@ -54,6 +54,9 @@ public abstract class AnnotationBuilder<T extends Annotation> {
                 if (!doc.getCollection().equals(task.getCollection()))
                     throw new IllegalArgumentException("Mismatched collection");
             }
+            /* use invalid length / offset values (-1) to indicate that the
+             * construction annotation is a document assignment, not a span
+             * assignment. */
             return new AnnotationBuilder.Assignment(
                 content, -1, -1, label);
         }
@@ -300,15 +303,22 @@ public abstract class AnnotationBuilder<T extends Annotation> {
         }
 
         /**
-         * Sets the disagreement flag for this judgment.
+         * Indicates that the judgment agrees with the underlying assignment.
          *
-         * @param disagreement When true, the judgment disagrees with the
-         *        underlying Annotation.Assignment. When false, the judgment
-         *        supports the assignment.
          * @return this
          */
-        public AnnotationBuilder.Judgment disagreement(boolean disagreement) {
-            _disagreement = disagreement;
+        public AnnotationBuilder.Judgment agreesWithAssignment() {
+            _disagreement = false;
+            return this;
+        }
+
+        /**
+         * Indicates that the judgment disagrees with the underlying assignment.
+         *
+         * @return this
+         */
+        public AnnotationBuilder.Judgment disagreesWithAssignment() {
+            _disagreement = true;
             return this;
         }
 

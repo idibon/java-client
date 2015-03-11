@@ -26,13 +26,19 @@ class PostAnnotationsIterator implements Iterator<JsonValue> {
 
     public JsonValue next() {
         try {
+            /* make sure that at least one batch of work has been submitted */
             advance();
+            /* if a result is ready, return it */
             JsonValue head = _complete.pollFirst();
             if (head == null) {
+                /* otherwise, wait for the oldest batch to complete, and
+                 * return that */
                 Future<JsonValue> next = _submit.pollFirst();
                 if (next == null) throw new NoSuchElementException();
                 head = next.get();
             }
+            /* and since at least one item has been completed, submit as
+             * much work as we can. */
             advance();
             return head;
         } catch (ExecutionException ex) {

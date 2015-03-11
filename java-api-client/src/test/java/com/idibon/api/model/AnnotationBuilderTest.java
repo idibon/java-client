@@ -44,7 +44,7 @@ public class AnnotationBuilderTest {
         assertThat(updated.document, is(mockDocument));
 
         Annotation.Judgment judgment = original.addJudgment()
-            .by(mockUserID).disagreement(true).build();
+            .by(mockUserID).disagreesWithAssignment().build();
 
         assertThat(judgment.assignment, is((Annotation.Assignment)original));
         assertThat(judgment.disagreement, is(true));
