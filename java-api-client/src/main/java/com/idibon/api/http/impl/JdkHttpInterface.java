@@ -483,8 +483,11 @@ public class JdkHttpInterface implements HttpInterface {
         try {
             code = conn.getResponseCode();
             msg = conn.getResponseMessage();
-            if (conn.getContentType().equals("application/json"))
-                obj = (JsonObject)readJson(conn.getErrorStream());
+            if (conn.getContentType().equals("application/json")) {
+                try (InputStream is = conn.getErrorStream()) {
+                    obj = (JsonObject)readJson(is);
+                }
+            }
         } catch (Exception _) { }
 
         switch (code) {

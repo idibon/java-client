@@ -96,14 +96,14 @@ public class UploadJsonDocuments
         List<JsonDocument> docsToPost = readContent(jsonFiles);
 
         long start = System.currentTimeMillis();
-        collection.addDocuments(docsToPost);
-        long end = System.currentTimeMillis();
-
-        client.shutdown(0);
-
-        double elapsed = (end - start) / 1000.0;
-        System.out.printf("Uploaded %d documents in %.2fs\n",
-                          docsToPost.size(), elapsed);
-
+        try {
+            collection.addDocuments(docsToPost);
+            long end = System.currentTimeMillis();
+            double elapsed = (end - start) / 1000.0;
+            System.out.printf("Uploaded %d documents in %.2fs\n",
+                              docsToPost.size(), elapsed);
+        } finally {
+            client.shutdown(0);
+        }
     }
 }
