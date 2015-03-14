@@ -3,6 +3,10 @@
  */
 package com.idibon.api.model;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import java.io.IOException;
 import javax.json.*;
 
@@ -173,6 +177,30 @@ public class Task extends IdibonHash {
         return _parent;
     }
 
+    /**
+     * Returns all of the ML tuning rules defined for this task.
+     */
+    public Map<Label, List<TuningRules.Rule>> getRules() throws IOException {
+        TuningRules tuning = _tuningRules;
+        if (tuning == null) {
+            tuning = TuningRules.parse(this,
+                getJson().getJsonObject(Keys.config.name()));
+            _tuningRules = tuning;
+        }
+
+        return Collections.unmodifiableMap(tuning);
+    }
+
+    /**
+     * Forces cached JSON data to be reloaded from the server.
+     */
+    @SuppressWarnings("unchecked")
+    @Override public Task invalidate() {
+        super.invalidate();
+        _tuningRules = null;
+        return this;
+    }
+
     @Override public boolean equals(Object other) {
         if (other == this) return true;
         if (!(other instanceof Task)) return false;
@@ -201,6 +229,7 @@ public class Task extends IdibonHash {
         _parent = parent;
     }
 
+    private volatile TuningRules _tuningRules;
     private final Collection _parent;
     private final String _name;
 }
