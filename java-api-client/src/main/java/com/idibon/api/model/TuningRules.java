@@ -19,7 +19,9 @@ import java.io.IOException;
  * Every label in the task may have a unique, independent tuning dictionary
  * assigned to it.
  */
-public class TuningRules extends AbstractMap<Label, List<TuningRules.Rule>> {
+public class TuningRules
+      extends AbstractMap<Label, List<TuningRules.Rule>>
+      implements Cloneable {
 
     /**
      * An individual rule (for a specific {@link com.idibon.api.model.Label}
@@ -86,6 +88,19 @@ public class TuningRules extends AbstractMap<Label, List<TuningRules.Rule>> {
          */
         public boolean isPredictive() {
             return weight > 0.5;
+        }
+
+        @Override public boolean equals(Object other) {
+            if (other == this) return true;
+            if (!(other instanceof Rule)) return false;
+            Rule r = (Rule)other;
+            return r.weight == weight &&
+                (r.phrase == phrase ||
+                 (r.phrase != null && r.phrase.equals(phrase)));
+        }
+
+        @Override public int hashCode() {
+            return this.phrase.hashCode();
         }
 
         /**
@@ -158,6 +173,15 @@ public class TuningRules extends AbstractMap<Label, List<TuningRules.Rule>> {
      */
     @Override public List<Rule> get(Object other) {
         return _rules.get(other);
+    }
+
+    @Override public TuningRules clone() {
+        Map<Label, List<Rule>> copy = new HashMap<>();
+        for (Map.Entry<Label, List<Rule>> entry : _rules.entrySet()) {
+            List<Rule> ruleCopy = new ArrayList<>(entry.getValue());
+            copy.put(entry.getKey(), ruleCopy);
+        }
+        return new TuningRules(copy);
     }
 
     TuningRules(Map<Label, List<Rule>> rules) {
