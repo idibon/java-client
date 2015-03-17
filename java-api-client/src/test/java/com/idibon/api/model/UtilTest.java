@@ -3,6 +3,9 @@
  */
 package com.idibon.api.model;
 
+import java.util.UUID;
+import java.util.Collections;
+
 import org.junit.*;
 import javax.json.*;
 
@@ -12,6 +15,28 @@ import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
 
 public class UtilTest {
+
+    @Test public void testSerializeAssignment() throws Exception {
+        Collection mockCollection = Collection.instance(null, "collection");
+        Document mockDocument = mockCollection.document("document");
+        Label mockLabel = mockCollection.task("task").label("label");
+        UUID mockUser = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+        Annotation.DocumentAssignment annotation =
+            new Annotation.DocumentAssignment(
+                mockDocument, null, false, mockLabel,
+                Annotation.Provenance.Human, "final", true, false, 1.0,
+                null, null, mockUser, Collections.<JsonObject>emptyList());
+
+        JsonObject serialized = Util.toJson(annotation);
+        assertThat(serialized.getString("user_id"), is(mockUser.toString()));
+        assertThat(serialized.getString("status"), is("final"));
+        assertThat(serialized.getString("provenance"), is("Human"));
+        assertThat(serialized.getBoolean("is_active"), is(false));
+        assertThat(serialized.getBoolean("is_negated"), is(true));
+        assertThat(serialized.getJsonNumber("confidence").doubleValue(), is(1.0));
+        assertThat(serialized.getBoolean("is_trainable"), is(false));
+    }
 
     @Test public void testJsonUtf8SizeOf() throws Exception {
         java.lang.reflect.Method method = Util.class.

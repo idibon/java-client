@@ -128,6 +128,9 @@ final class Util {
         bldr.add(Annotation.Keys.provenance.name(), ann.provenance.name());
         bldr.add(Annotation.Keys.is_negated.name(), ann.negativeExample);
         bldr.add(Annotation.Keys.is_trainable.name(), ann.trainable);
+        if (ann.status != null)
+            bldr.add(Annotation.Keys.status.name(), ann.status);
+
         if (!Double.isNaN(ann.confidence))
             bldr.add(Annotation.Keys.confidence.name(), ann.confidence);
 
