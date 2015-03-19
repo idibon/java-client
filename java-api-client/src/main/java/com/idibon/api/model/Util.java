@@ -36,7 +36,7 @@ final class Util {
      * Creates a JsonArray from an array of Java Strings.
      *
      * @param strings Array of strings
-     * @returns JsonArray
+     * @return JsonArray
      */
     static JsonArray toJson(String[] strings) {
         JsonArrayBuilder b = JSON_BF.createArrayBuilder();
@@ -51,7 +51,7 @@ final class Util {
      * Creates a JsonArray from an iterable collection of strings.
      *
      * @param strings
-     * @returns JsonArray
+     * @return JsonArray
      */
     static JsonArray toJson(Iterable<String> strings) {
         JsonArrayBuilder b = JSON_BF.createArrayBuilder();
@@ -90,6 +90,28 @@ final class Util {
         }
 
         return bldr.build();
+    }
+
+    /**
+     * Creates a JsonObject from a TuningRules map.
+     *
+     * @param rules A TuningRules structure to serialize
+     * @return JsonObject to send to the server
+     */
+    static JsonObject toJson(TuningRules rules) {
+        if (rules == null) return null;
+        JsonObjectBuilder tuning = JSON_BF.createObjectBuilder();
+
+        for (Map.Entry<Label, List<TuningRules.Rule>> e : rules.entrySet()) {
+            List<TuningRules.Rule> phrases = e.getValue();
+            if (phrases.isEmpty()) continue;
+            JsonObjectBuilder labelRules = JSON_BF.createObjectBuilder();
+            for (TuningRules.Rule r : phrases)
+                labelRules.add(r.phrase, r.weight);
+            tuning.add(e.getKey().getName(), labelRules.build());
+        }
+
+        return tuning.build();
     }
 
     /**
@@ -163,7 +185,7 @@ final class Util {
      * Expands a compacted JSON hash of document data into standard form.
      *
      * @param compact The original, compact document.
-     * @returns The expanded document
+     * @return The expanded document
      */
     static JsonObject expandDocument(JsonObject compact) {
         JsonObjectBuilder expander = JSON_BF.createObjectBuilder();
@@ -302,7 +324,7 @@ final class Util {
      *
      * @param compact The input, compacted annotation
      *
-     * @returns JsonObject of the expanded annotation
+     * @return JsonObject of the expanded annotation
      */
     private static JsonObject expandAnnotation(JsonObject compact) {
         JsonObjectBuilder expander = JSON_BF.createObjectBuilder();

@@ -3,10 +3,17 @@
  */
 package com.idibon.api.model;
 
+import java.util.*;
+
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
+
 import java.io.IOException;
 import javax.json.*;
 
 import com.idibon.api.http.HttpInterface;
+import com.idibon.api.model.Collection;
+import static com.idibon.api.model.Util.JSON_BF;
 
 /**
  * A machine learning task inside a Collection.
@@ -173,6 +180,156 @@ public class Task extends IdibonHash {
         return _parent;
     }
 
+    /**
+     * Returns all of the ML tuning rules defined for this task.
+     *
+     * @return An unmodifiable map of all of the tuning rules for the task.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<Label, List<? extends TuningRules.Rule>> getRules()
+          throws IOException {
+        /* javac incorrectly reports that casting Map<X, List<Y>> to
+         * Map<X, List<? extends Y>> is inconvertible. cast through
+         * Object to silence this error. */
+        Map<Label, List<? extends TuningRules.Rule>> r =
+            (Map<Label, List<? extends TuningRules.Rule>>)(Object)
+            getCachedTuningRules();
+        return Collections.unmodifiableMap(r);
+    }
+
+    /**
+     * Adds new tuning rules to the task, or update the weights for existing
+     * rules.
+     *
+     * Modification of tuning rules is not idempotent, so this method is
+     * designed to prevent concurrent actions that could result in non-
+     * deterministic results. If multiple {@link com.idibon.api.model.Task}
+     * instances are created for the same API task, the application must
+     * take care to ensure that all calls to {@link com.idibon.api.model.Task#addRules}
+     * and {@link com.idibon.api.model.TaskRules#deleteRules} are serialized
+     * to ensure consistent results.
+     *
+     * Cached API responses are invalidated following a successful update.
+     *
+     * @param rules List of rules to add. If an identical rule already exists
+     *        in the task, the rules' weight will be updated to the new value.
+     */
+    public synchronized void addRules(TuningRules.Rule... rules)
+          throws IOException {
+        TuningRules tuning = getCachedTuningRules().clone();
+
+        /* loop over all arguments; if the rule isn't found elsewhere in
+         * the existing dictionary, add it */
+        for (TuningRules.Rule rule : rules) {
+            if (!rule.label.getTask().equals(this))
+                throw new IllegalArgumentException("Wrong task on rule");
+
+            List<TuningRules.Rule> labelRules = tuning.get(rule.label);
+            if (labelRules == null) {
+                labelRules = new ArrayList<>();
+                tuning.put(rule.label, labelRules);
+            }
+
+            Iterator<TuningRules.Rule> existingRules = labelRules.iterator();
+            /* delete every rule for the same phrase as the new rule
+             * TODO: build a map of the new phrases as a pre-process, so this
+             * is O(N+M), rather than O(NM) */
+            while (existingRules.hasNext()) {
+                TuningRules.Rule existing = existingRules.next();
+                if (existing.phrase.equals(rule.phrase))
+                    existingRules.remove();
+            }
+            labelRules.add(rule);
+        }
+
+        JsonObject task = JSON_BF.createObjectBuilder()
+            .add("task", JSON_BF.createObjectBuilder()
+              .add("config", JSON_BF.createObjectBuilder()
+                .add("tuning", Util.toJson(tuning)).build()).build()).build();
+
+        Future<JsonValue> result = _httpIntf.httpPost(getEndpoint(), task);
+        try {
+            result.get();
+            invalidate();
+        } catch (ExecutionException ex) {
+            if (ex.getCause() instanceof IOException)
+                throw (IOException)ex.getCause();
+            throw new IOException("Error posting rules", ex.getCause());
+        } catch (InterruptedException ex) {}
+    }
+
+    /**
+     * Deletes one or more existing tuning rules.
+     *
+     * Modification of tuning rules is not idempotent, so this method is
+     * designed to prevent concurrent actions that could result in non-
+     * deterministic results. If multiple {@link com.idibon.api.model.Task}
+     * instances are created for the same API task, the application must
+     * take care to ensure that all calls to {@link com.idibon.api.model.Task#addRules}
+     * and {@link com.idibon.api.model.TaskRules#deleteRules} are serialized
+     * to ensure consistent results.
+     *
+     * Cached API responses are invalidated following a successful update.
+     *
+     * @param rules Array of tuning rules to delete from this task's tuning
+     *        dictionary. All of the rules must be for labels within this task.
+     */
+    public synchronized void deleteRules(TuningRules.Rule... rules)
+          throws IOException {
+        TuningRules tuning = getCachedTuningRules().clone();
+        boolean dirty = false;
+
+        /* loop over all arguments, deleting each from the local tuning
+         * dictionary copy. */
+        for (TuningRules.Rule rule : rules) {
+            if (!rule.label.getTask().equals(this))
+                throw new IllegalArgumentException("Wrong task on rule");
+
+            List<TuningRules.Rule> labelRules = tuning.get(rule.label);
+            if (labelRules == null) continue;
+            Iterator<TuningRules.Rule> ruleIter = labelRules.iterator();
+
+            while (ruleIter.hasNext()) {
+                // Search for the first matching rule
+                TuningRules.Rule existing = ruleIter.next();
+                System.out.printf("Comparing %s to %s", existing.phrase, rule.phrase);
+                if (existing.equals(rule)) {
+                    // match found, delete it and quit the loop
+                    ruleIter.remove();
+                    dirty = true;
+                    break;
+                }
+            }
+        }
+
+        if (!dirty) return;  // no changes needed, don't upload
+
+        JsonObject task = JSON_BF.createObjectBuilder()
+            .add("task", JSON_BF.createObjectBuilder()
+              .add("config", JSON_BF.createObjectBuilder()
+                .add("tuning", Util.toJson(tuning)).build()).build()).build();
+        Future<JsonValue> result = _httpIntf.httpPost(getEndpoint(), task);
+        try {
+            result.get();
+            invalidate();
+        } catch (ExecutionException ex) {
+            if (ex.getCause() instanceof IOException)
+                throw (IOException)ex.getCause();
+            throw new IOException("Error posting rules", ex.getCause());
+        } catch (InterruptedException ex) {}
+
+    }
+
+    /**
+     * Forces cached JSON data to be reloaded from the server.
+     */
+    @SuppressWarnings("unchecked")
+    @Override public Task invalidate() {
+        super.invalidate();
+        _tuningRules = null;
+        return this;
+    }
+
     @Override public boolean equals(Object other) {
         if (other == this) return true;
         if (!(other instanceof Task)) return false;
@@ -190,7 +347,7 @@ public class Task extends IdibonHash {
         return new Task(name, parent, parent.getInterface());
     }
 
-     static Task instance(Collection parent, JsonObject obj) {
+    static Task instance(Collection parent, JsonObject obj) {
         String name = obj.getJsonObject("task").getString("name");
         return instance(parent, name).preload(obj);
     }
@@ -201,6 +358,21 @@ public class Task extends IdibonHash {
         _parent = parent;
     }
 
+    /**
+     * Private helper function to get the cached copy of the tuning rules,
+     * or create and cache an instance if one does not already exist.
+     */
+    private TuningRules getCachedTuningRules() throws IOException {
+        TuningRules tuning = _tuningRules;
+        if (tuning == null) {
+            tuning = TuningRules.parse(this,
+                getJson().getJsonObject(Keys.config.name()));
+            _tuningRules = tuning;
+        }
+        return tuning;
+    }
+
+    private volatile TuningRules _tuningRules;
     private final Collection _parent;
     private final String _name;
 }
