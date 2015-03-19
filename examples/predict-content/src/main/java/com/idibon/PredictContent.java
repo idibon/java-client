@@ -29,6 +29,7 @@ public class PredictContent
         Iterable<DocumentContent> streamDocuments =
             wrapCharSequences(Arrays.asList(content));
 
+        // Drop the prediction threshold to 0.6 to pick up more features
         Iterable<DocumentPrediction> predictedResults =
             task.classifications(streamDocuments).withSignificantFeatures(0.6);
 
