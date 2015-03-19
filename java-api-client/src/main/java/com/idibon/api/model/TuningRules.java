@@ -42,10 +42,10 @@ public class TuningRules
      * examples of non-predictive phrases.</li>
      * <li>Values <b>less than 0.5</b> are anti-predictive. Rules that match
      * document content will reduce the predictive confidence in that rule's
-     * {@com.idibon.api.model.Label}.</li>
+     * {@link com.idibon.api.model.Label}.</li>
      * <li> Values <b>greater than 0.5</b> are positively predictive. Rules
      * that match document content will increase the predictive confidence in
-     * that {@com.idibon.api.model.Label}.</li>
+     * that {@link com.idibon.api.model.Label}.</li>
      * </ul>
      */
     public static abstract class Rule {

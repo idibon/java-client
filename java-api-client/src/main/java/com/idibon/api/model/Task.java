@@ -206,7 +206,7 @@ public class Task extends IdibonHash {
      * deterministic results. If multiple {@link com.idibon.api.model.Task}
      * instances are created for the same API task, the application must
      * take care to ensure that all calls to {@link com.idibon.api.model.Task#addRules}
-     * and {@link com.idibon.api.model.TaskRules#deleteRules} are serialized
+     * and {@link com.idibon.api.model.Task#deleteRules} are serialized
      * to ensure consistent results.
      *
      * Cached API responses are invalidated following a successful update.
@@ -266,7 +266,7 @@ public class Task extends IdibonHash {
      * deterministic results. If multiple {@link com.idibon.api.model.Task}
      * instances are created for the same API task, the application must
      * take care to ensure that all calls to {@link com.idibon.api.model.Task#addRules}
-     * and {@link com.idibon.api.model.TaskRules#deleteRules} are serialized
+     * and {@link com.idibon.api.model.Task#deleteRules} are serialized
      * to ensure consistent results.
      *
      * Cached API responses are invalidated following a successful update.
@@ -292,7 +292,6 @@ public class Task extends IdibonHash {
             while (ruleIter.hasNext()) {
                 // Search for the first matching rule
                 TuningRules.Rule existing = ruleIter.next();
-                System.out.printf("Comparing %s to %s", existing.phrase, rule.phrase);
                 if (existing.equals(rule)) {
                     // match found, delete it and quit the loop
                     ruleIter.remove();

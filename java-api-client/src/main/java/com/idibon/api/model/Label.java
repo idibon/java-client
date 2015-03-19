@@ -31,7 +31,7 @@ public class Label {
     /**
      * Returns the rules associated with this label.
      *
-     * @returns All of the rules associated with this label, or an empty list.
+     * @return All of the rules associated with this label, or an empty list.
      */
     public List<? extends TuningRules.Rule> getRules() throws IOException {
         List<? extends TuningRules.Rule> rules = _task.getRules().get(this);
