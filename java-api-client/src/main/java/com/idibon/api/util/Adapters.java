@@ -4,7 +4,6 @@
 package com.idibon.api.util;
 
 import java.util.Iterator;
-import javax.json.JsonObject;
 import com.idibon.api.model.*;
 
 /**
@@ -52,72 +51,5 @@ public final class Adapters {
                 throw new UnsupportedOperationException();
             }
         };
-    }
-
-    /**
-     * Adapts between {@link java.lang.CharSequence} instances and
-     * {@link com.idibon.api.model.DocumentContent}.
-     *
-     * This can be used to wrap Java Strings in a format suitable for uploading
-     * either as ephemeral predictions or for permanent storage under server-
-     * assigned names.
-     *
-     * @param sequences An iteration of {@link java.lang.CharSequence}
-     *        instances.
-     * @return An iterable that lazily wraps each CharSequence in a
-     *         {@link com.idibon.api.model.DocumentContent} facade
-     */
-    public static Iterable<DocumentContent> wrapCharSequences(
-          final Iterable<? extends CharSequence> sequences) {
-        return new Iterable<DocumentContent>() {
-            public Iterator<DocumentContent> iterator() {
-                return Adapters.wrapCharSequences(sequences.iterator());
-            }
-        };
-    }
-
-    /**
-     * Adapts between {@link java.lang.CharSequence} instances and
-     * {@link com.idibon.api.model.DocumentContent}.
-     *
-     * This can be used to wrap Java Strings in a format suitable for uploading
-     * either as ephemeral predictions or for permanent storage under server-
-     * assigned names.
-     *
-     * @param sequences An iteration of {@link java.lang.CharSequence}
-     *        instances.
-     * @return An iterator that lazily wraps each CharSequence in a
-     *         {@link com.idibon.api.model.DocumentContent} facade
-     */
-    public static Iterator<DocumentContent> wrapCharSequences(
-          final Iterator<? extends CharSequence> sequences) {
-        return new Iterator<DocumentContent>() {
-            public boolean hasNext() {
-                return sequences.hasNext();
-            }
-            public DocumentContent next() {
-                return new CharSequenceContent(sequences.next());
-            }
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    /**
-     * Simple facade to return a CharSequence as unnamed DocumentContent
-     */
-    private static class CharSequenceContent implements DocumentContent {
-        CharSequenceContent(CharSequence sequence) {
-            _sequence = sequence;
-        }
-        public String getContent() {
-            return _sequence.toString();
-        }
-        public JsonObject getMetadata() {
-            return null;
-        }
-
-        private final CharSequence _sequence;
     }
 }

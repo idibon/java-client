@@ -82,11 +82,11 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
             Label label = _task.label(entry.getKey());
             List<String> labelFeats;
 
-            if (entry.getValue() instanceof JsonObject) {
-                JsonObject featuresAndWeights = (JsonObject)entry.getValue();
-                labelFeats = new ArrayList<>(featuresAndWeights.size());
-                for (String feature : featuresAndWeights.keySet())
-                    labelFeats.add(feature);
+            if (entry.getValue() instanceof JsonArray) {
+                JsonArray array = (JsonArray)entry.getValue();
+                labelFeats = new ArrayList<>(array.size());
+                for (JsonString feat : array.getValuesAs(JsonString.class))
+                    labelFeats.add(feat.getString());
             } else {
                 labelFeats = Collections.emptyList();
             }

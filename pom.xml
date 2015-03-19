@@ -20,6 +20,5 @@
        <module>examples/list-documents</module>
        <module>examples/upload-json-documents</module>
        <module>examples/annotate-document</module>
-       <module>examples/predict-content</module>
    </modules>
 </project>
