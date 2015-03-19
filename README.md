@@ -32,6 +32,7 @@ Name|Description
 [list-documents](#list-documents)|Lists all of the document names in a collection
 [upload-json-documents](#upload-json-documents)|Upload one or more JSON documents to a collection
 [annotate-document](#annotate-document)|Add an assignment annotation for a document-scope task to a document
+[predict-content](#predict-content)|Generate API classifications for text on the command line
 
 ### <a name="list-documents">list-documents Example App</a>
 
@@ -82,3 +83,23 @@ java -cp annotate-document-0.1.0-SNAPSHOT-jar-with-dependencies.jar \
 * `$TASK` should be the name of a document-scope task inside `$COLLECTION`
 
 * `$LABEL` should be the name of a label within `$TASK`
+
+### <a name="predict-content">predict-content Example App</a>
+
+This example app demonstrates the Idibon API's streaming predictive
+classification capabilities by taking an arbitrary string of text
+provided on the command line and generating a prediction against a
+user-defined task. The full classification results, including
+confidences for each label and significant features, are printed
+to the console.
+
+To run
+```
+cd examples/predict-content/target
+java -cp predict-content-0.1.0-SNAPSHOT-jar-with-dependencies.jar \
+  com.idibon.PredictContent $API_KEY $COLLECTION $TASK Some content...
+```
+
+* `$TASK` should be the name of a document-scope task inside `$COLLECTION`
+
+* `Some content` should be whatever text you want to predict. It may be provided in quotes or unquoted.
