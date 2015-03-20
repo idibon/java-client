@@ -3,6 +3,7 @@
  */
 package com.idibon.api.util;
 
+import java.util.NoSuchElementException;
 import java.util.Iterator;
 import javax.json.JsonObject;
 import com.idibon.api.model.*;
@@ -11,6 +12,53 @@ import com.idibon.api.model.*;
  * Static utility class for adapting between data types.
  */
 public final class Adapters {
+
+    /**
+     * Iterates over all right results in the provided list of
+     * {@link com.idibon.api.util.Either} instances.
+     *
+     * @param results A list of partial function results
+     * @return Just the results that have right values.
+     */
+    public static <L, R> Iterable<R> flattenRight(
+          final Iterable<Either<L, R>> results) {
+        return new Iterable<R>() {
+            public Iterator<R> iterator() {
+                return Adapters.flattenRight(results.iterator());
+            }
+        };
+    }
+
+    /**
+     * Iterates over all right results in the provided list of
+     * {@link com.idibon.api.util.Either} instances.
+     *
+     * @param results A list of partial function results
+     * @return Just the results that have right values.
+     */
+    public static <L, R> Iterator<R> flattenRight(
+          final Iterator<Either<L, R>> results) {
+        return new Iterator<R>() {
+            private R _next = null;
+
+            public boolean hasNext() {
+                while (_next == null && results.hasNext()) {
+                    Either<L, R> either = results.next();
+                    if (either.isRight()) _next = either.right;
+                }
+                return _next != null;
+            }
+            public R next() {
+                if (!hasNext()) throw new NoSuchElementException();
+                R value = _next;
+                _next = null;
+                return value;
+            }
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
 
     /**
      * Adapts between {@link com.idibon.api.model.AnnotationBuilder} instances
