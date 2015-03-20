@@ -4,10 +4,12 @@
 package com.idibon;
 
 import java.util.Arrays;
+import java.io.IOException;
 
 import com.idibon.api.http.impl.JdkHttpInterface;
 import com.idibon.api.model.*;
 import com.idibon.api.IdibonAPI;
+import com.idibon.api.util.Either;
 
 import static com.idibon.api.model.DocumentAnnotationQuery.forTasks;
 
@@ -39,8 +41,9 @@ public class ListDocuments
         }
 
         long count = 0;
-        for (Document doc : documents) {
-            System.out.printf("%s\n", doc.getJson().getString("name"));
+        for (Either<IOException, Document> doc : documents) {
+            if (doc.isLeft()) throw doc.left;
+            System.out.printf("%s\n", doc.right.getJson().getString("name"));
             count++;
         }
 
