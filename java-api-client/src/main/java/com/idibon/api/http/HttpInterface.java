@@ -5,7 +5,6 @@
 package com.idibon.api.http;
 
 import java.io.*;
-import java.util.concurrent.Future;
 import javax.json.*;
 
 /**
@@ -22,8 +21,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonValue> httpGet(String endpoint)
-        throws IOException;
+    public HttpFuture<JsonValue> httpGet(String endpoint);
 
     /**
      * Executes an HTTP GET method and transmits the serialized body to the
@@ -34,8 +32,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonValue> httpGet(String endpoint, JsonObject body)
-        throws IOException;
+    public HttpFuture<JsonValue> httpGet(String endpoint, JsonObject body);
 
     /**
      * Executes an HTTP PUT method and transmits the serialized body to the
@@ -46,8 +43,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonValue> httpPut(String endpoint, JsonObject body)
-        throws IOException;
+    public HttpFuture<JsonValue> httpPut(String endpoint, JsonObject body);
 
     /**
      * Executes an HTTP POST method and transmits the serialized body to the
@@ -58,8 +54,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonValue> httpPost(String endpoint, JsonObject body)
-        throws IOException;
+    public HttpFuture<JsonValue> httpPost(String endpoint, JsonObject body);
 
     /**
      * Executes an HTTP DELETE method and transmits the serialized body to the
@@ -70,8 +65,7 @@ public interface HttpInterface {
      *
      * @return Decoded JSON response from the server
      */
-    public Future<JsonValue> httpDelete(String endpoint, JsonObject body)
-        throws IOException;
+    public HttpFuture<JsonValue> httpDelete(String endpoint, JsonObject body);
 
     /**
      * Waits for pending operations to complete and shuts down any execution

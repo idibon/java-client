@@ -4,14 +4,13 @@
 package com.idibon.api.model;
 
 import java.io.IOException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
 import java.util.NoSuchElementException;
 import java.util.Iterator;
 import java.util.Arrays;
 import javax.json.*;
 
 import com.idibon.api.http.*;
+import com.idibon.api.util.Either;
 import static com.idibon.api.model.Util.*;
 
 
@@ -20,7 +19,8 @@ import static com.idibon.api.model.Util.*;
  * annotation features, or other aspects, and then iterating over the
  * results.
  */
-public class DocumentSearcher implements Iterable<Document> {
+public class DocumentSearcher
+      implements Iterable<Either<IOException, Document>> {
 
     /**
      * Types of data that can be returned in various search
@@ -206,7 +206,7 @@ public class DocumentSearcher implements Iterable<Document> {
      * Validates the current search configuration, sends the request to
      * the server, and returns the results of the query.
      */
-    public Iterator<Document> iterator() {
+    public Iterator<Either<IOException, Document>> iterator() {
         validate();
         return this.new Iter();
     }
@@ -294,7 +294,7 @@ public class DocumentSearcher implements Iterable<Document> {
      * Inner class responsible for paging through HTTP results and converting
      * the results into Document instances.
      */
-    private class Iter implements Iterator<Document> {
+    private class Iter implements Iterator<Either<IOException, Document>> {
 
         private Iter() {
             /* cache the streaming mode, since the format of the returned
@@ -327,37 +327,40 @@ public class DocumentSearcher implements Iterable<Document> {
         /**
          * Returns the next Document from the search results.
          */
-        public Document next() {
-            if (!hasNext())
-                throw new NoSuchElementException();
+        public Either<IOException, Document> next() {
+            if (!hasNext()) throw new NoSuchElementException();
 
-            if (_currentBatch == null || _offset >= _currentBatch.size()) {
-                try {
-                    waitForNextBatch();
-                    _offset = 0;
-                } catch (ExecutionException|InterruptedException ex) {
-                    if (ex.getCause() instanceof IOException)
-                        throw new IterationException(_endpoint, ex.getCause());
-                    else
-                        throw new IterationException(_endpoint, ex);
-                }
+            if (!moreResultsInBatch()) {
+                waitForNextBatch();
+                _offset = 0;
             }
 
-            if (_currentBatch == null || _offset >= _currentBatch.size())
+            /* throw a NoSuchElement exception if the server returned an empty
+             * array, or nothing. */
+            if (_currentBatch == null || (_currentBatch.isRight() &&
+                    _offset >= _currentBatch.right.size())) {
                 throw new NoSuchElementException();
+            }
 
-            JsonObject obj = _currentBatch.getJsonObject(_offset);
+            // if the result was an error, return the error and null the batch
+            if (_currentBatch.isLeft()) {
+                IOException err = _currentBatch.left;
+                _currentBatch = null;
+                return Either.left(err);
+            }
+
+            JsonObject obj = _currentBatch.right.getJsonObject(_offset);
             _offset += 1;
             if (_streaming) {
-                return _collection.document(expandDocument(obj));
+                return Either.right(_collection.document(expandDocument(obj)));
             } else if (needsFullContentMode()) {
                 /* preload the returned Document object with whatever data
                  * was requested. */
-                return _collection.document(
-                         _docWrapper.add("document", obj).build());
+                return Either.right(_collection.document(
+                                    _docWrapper.add("document", obj).build()));
             } else {
                 // just the document name.
-                return _collection.document(obj.getString("name"));
+                return Either.right(_collection.document(obj.getString("name")));
             }
         }
 
@@ -366,7 +369,7 @@ public class DocumentSearcher implements Iterable<Document> {
          * results.
          */
         public boolean hasNext() {
-            return _nextBatch != null || _offset < _currentBatch.size();
+            return _nextBatch != null || moreResultsInBatch();
         }
 
         /**
@@ -408,31 +411,45 @@ public class DocumentSearcher implements Iterable<Document> {
         }
 
         /**
+         * Returns true if there are more results to return in the current batch
+         */
+        private boolean moreResultsInBatch() {
+            return _currentBatch != null && (_currentBatch.isLeft() ||
+                _offset < _currentBatch.right.size());
+        }
+
+        /**
          * Waits for a dispatched batch to complete and normalizes the returned
          * JSON objects into a common format. Used by #next().
          */
-        private void waitForNextBatch()
-            throws ExecutionException, InterruptedException {
+        private void waitForNextBatch() {
             String cursor = null;
-
-            Future<JsonValue> async = _nextBatch;
+            HttpFuture<JsonValue> batch = _nextBatch;
             _nextBatch = null;
 
             if (_streaming) {
-                _currentBatch = (JsonArray)async.get();
-                if (_currentBatch.size() == 0)
-                    return;
-                cursor = _currentBatch
-                    .getJsonObject(_currentBatch.size() - 1)
-                    .getString("cursor", null);
+                _currentBatch = batch.getAs(JsonArray.class);
+
+                if (_currentBatch.isRight() && !_currentBatch.right.isEmpty()) {
+                    cursor = _currentBatch.right
+                        .getJsonObject(_currentBatch.right.size() - 1)
+                        .getString("cursor", null);
+                }
             } else {
-                JsonObject rv = (JsonObject)async.get();
-                _currentBatch = rv.getJsonArray("documents");
-                cursor = rv.getString("cursor", null);
+                Either<IOException, JsonObject> rv =
+                    batch.getAs(JsonObject.class);
+
+                if (rv.isLeft()) {
+                    _currentBatch = Either.left(rv.left);
+                } else {
+                    JsonObject obj = rv.right;
+                    _currentBatch = Either.right(obj.getJsonArray("documents"));
+                    cursor = obj.getString("cursor", null);
+                }
             }
 
-            _nextStart += _currentBatch.size();
-            _limitRemain -= _currentBatch.size();
+            _nextStart += _currentBatch.right.size();
+            _limitRemain -= _currentBatch.right.size();
 
             // pre-load the next batch if one exists
             if (cursor != null && _limitRemain > 0) dispatchNext(cursor);
@@ -452,11 +469,7 @@ public class DocumentSearcher implements Iterable<Document> {
             /* restrict the results to the lesser of the server max (1000) and
              * the desired number of results */
             _query.add("count", Math.min(1000L, _limitRemain));
-            try {
-                _nextBatch = _httpIntf.httpGet(_endpoint, _query.build());
-            } catch (IOException ex) {
-                throw new IterationException(_endpoint, ex);
-            }
+            _nextBatch = _httpIntf.httpGet(_endpoint, _query.build());
         }
 
         // The endpoint used for document iteration
@@ -471,8 +484,8 @@ public class DocumentSearcher implements Iterable<Document> {
         // If streaming mode is used
         private final boolean _streaming;
 
-        private Future<JsonValue> _nextBatch;
-        private JsonArray _currentBatch;
+        private HttpFuture<JsonValue> _nextBatch;
+        private Either<IOException, JsonArray> _currentBatch;
         private int _offset;
         private long _nextStart;
         private long _limitRemain;

@@ -103,57 +103,44 @@ public class JdkHttpInterface implements HttpInterface {
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpGet(String)}
      */
-    public Future<JsonValue> httpGet(String endpoint) throws IOException {
+    public HttpFuture<JsonValue> httpGet(String endpoint) {
         return httpGet(endpoint, null);
     }
 
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpGet(String, JsonObject)}
      */
-    public Future<JsonValue> httpGet(String endpoint,
-                                     JsonObject body) throws IOException {
-
-        try {
-            return _threadPool.submit(new HttpOp("GET", endpoint, body));
-        } catch (RejectedExecutionException ex) {
-            throw new IOException("Unable to perform asynchronous GET", ex);
-        }
+    public HttpFuture<JsonValue> httpGet(String endpoint, JsonObject body) {
+        return HttpFuture.wrap(
+            _threadPool.submit(new HttpOp("GET", endpoint, body))
+        );
     }
 
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpPut(String, JsonObject)}
      */
-    public Future<JsonValue> httpPut(String endpoint, JsonObject body)
-        throws IOException {
-        try {
-            return _threadPool.submit(new HttpOp("PUT", endpoint, body));
-        } catch (RejectedExecutionException ex) {
-            throw new IOException("Unable to perform asynchronous PUT", ex);
-        }
+    public HttpFuture<JsonValue> httpPut(String endpoint, JsonObject body) {
+        return HttpFuture.wrap(
+            _threadPool.submit(new HttpOp("PUT", endpoint, body))
+        );
     }
 
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonObject)}
      */
-    public Future<JsonValue> httpPost(String endpoint, JsonObject body)
-        throws IOException {
-        try {
-            return _threadPool.submit(new HttpOp("POST", endpoint, body));
-        } catch (RejectedExecutionException ex) {
-            throw new IOException("Unable to perform asynchronous POST", ex);
-        }
+    public HttpFuture<JsonValue> httpPost(String endpoint, JsonObject body) {
+        return HttpFuture.wrap(
+            _threadPool.submit(new HttpOp("POST", endpoint, body))
+        );
     }
 
     /**
      * Implements {@link com.idibon.api.http.HttpInterface#httpPost(String, JsonObject)}
      */
-    public Future<JsonValue> httpDelete(String endpoint, JsonObject body)
-        throws IOException {
-        try {
-            return _threadPool.submit(new HttpOp("DELETE", endpoint, body));
-        } catch (RejectedExecutionException ex) {
-            throw new IOException("Unable to perform asynchronous DELETE", ex);
-        }
+    public HttpFuture<JsonValue> httpDelete(String endpoint, JsonObject body) {
+        return HttpFuture.wrap(
+            _threadPool.submit(new HttpOp("DELETE", endpoint, body))
+        );
     }
 
     /**

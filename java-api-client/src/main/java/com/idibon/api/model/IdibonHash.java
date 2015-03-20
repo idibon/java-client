@@ -9,7 +9,6 @@ import java.net.URLEncoder;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ExecutionException;
 
 import com.idibon.api.http.*;
 import javax.json.*;
@@ -94,7 +93,7 @@ public abstract class IdibonHash {
      * @param body Body to include with HTTP query. May be null.
      */
     protected JsonObject getJson(JsonObject body) throws IOException {
-        Future<JsonValue> async = null;
+        HttpFuture<JsonValue> async = null;
 
         synchronized(this) {
             if (_jsonFuture == null)
@@ -102,29 +101,24 @@ public abstract class IdibonHash {
             async = _jsonFuture;
         }
 
-        JsonObject result = null;
-
         try {
-            JsonValue element = async.get();
-            if (element.getValueType() != ValueType.OBJECT)
-                throw new IOException("Invalid return object");
-            result = (JsonObject)element;
-        } catch (InterruptedException|ExecutionException ex) {
-            if (ex.getCause() instanceof IOException)
-                throw (IOException)(ex.getCause());
-            throw new IOException("Wrapped", ex);
-        } finally {
-            /* if the load fails for any reason, clear out the cached Future
-             * so that the load will be tried again. */
-            if (result == null) {
-                synchronized(this) {
-                    if (_jsonFuture == async)
-                        _jsonFuture = null;
-                }
-            }
-        }
+            if (async.get().isLeft())
+                throw async.get().left;
 
-        return result;
+            JsonValue element = async.get().right;
+            if (element.getValueType() != ValueType.OBJECT)
+                throw new IOException("Invalid return object type from API");
+
+            return (JsonObject)element;
+        } catch (IOException ex) {
+            /* since the load failed, clear out the cached future so that it
+             * will be tried again on the next request. */
+            synchronized(this) {
+                if (async == _jsonFuture)
+                    _jsonFuture = null;
+            }
+            throw ex;
+        }
     }
 
     /**
@@ -142,7 +136,7 @@ public abstract class IdibonHash {
             public boolean isCancelled() { return false; }
             public boolean isDone() { return true; }
         };
-        synchronized(this) { _jsonFuture = preloaded; }
+        synchronized(this) { _jsonFuture = HttpFuture.wrap(preloaded); }
         return (T)this;
     }
 
@@ -158,5 +152,5 @@ public abstract class IdibonHash {
     protected final String _endpoint;
 
     /// The JSON hash of data for this object. Potentially-lazy-loaded.
-    private Future<JsonValue> _jsonFuture;
+    private HttpFuture<JsonValue> _jsonFuture;
 }

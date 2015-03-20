@@ -6,8 +6,9 @@ package com.idibon.api.model;
 import java.io.IOException;
 
 import java.util.*;
-import java.util.concurrent.Future;
 import javax.json.*;
+
+import com.idibon.api.http.HttpFuture;
 
 import static com.idibon.api.model.Util.*;
 
@@ -227,7 +228,7 @@ public abstract class Annotation {
      *
      * @return A Future that stores the return value of the delete operation.
      */
-    public abstract Future<JsonValue> deleteAsync() throws IOException;
+    public abstract HttpFuture<JsonValue> deleteAsync();
 
     /**
      * An Assignment annotation. Subclassed to DocumentAssignment and
@@ -303,7 +304,7 @@ public abstract class Annotation {
          * @return A Future that stores the return value of the delete
          *         operation.
          */
-        public Future<JsonValue> deleteAsync() throws IOException {
+        public HttpFuture<JsonValue> deleteAsync() {
             if (document == null || uuid == null)
                 throw new IllegalStateException("Annotation isn't committed");
 
@@ -468,7 +469,7 @@ public abstract class Annotation {
          * @return A Future that stores the return value of the delete
          *         operation.
          */
-        public Future<JsonValue> deleteAsync() throws IOException {
+        public HttpFuture<JsonValue> deleteAsync() {
             if (uuid == null)
                 throw new IllegalStateException("Annotation isn't committed");
 

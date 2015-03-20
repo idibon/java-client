@@ -6,17 +6,18 @@ package com.idibon.api.model;
 import java.io.IOException;
 
 import java.util.*;
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
-
 import javax.json.*;
+
+import com.idibon.api.http.HttpFuture;
+import com.idibon.api.util.Either;
 
 import static com.idibon.api.model.Util.JSON_BF;
 
 /**
  * Utility class to batch and post annotation updates to one or more documents.
  */
-class PostAnnotationsIterator implements Iterator<JsonValue> {
+class PostAnnotationsIterator
+      implements Iterator<Either<IOException, JsonValue>> {
 
     public boolean hasNext() {
         return _annotations.hasNext() ||
@@ -24,28 +25,22 @@ class PostAnnotationsIterator implements Iterator<JsonValue> {
             !_complete.isEmpty();
     }
 
-    public JsonValue next() {
-        try {
-            /* make sure that at least one batch of work has been submitted */
-            advance();
-            /* if a result is ready, return it */
-            JsonValue head = _complete.pollFirst();
-            if (head == null) {
-                /* otherwise, wait for the oldest batch to complete, and
-                 * return that */
-                Future<JsonValue> next = _submit.pollFirst();
-                if (next == null) throw new NoSuchElementException();
-                head = next.get();
-            }
-            /* and since at least one item has been completed, submit as
-             * much work as we can. */
-            advance();
-            return head;
-        } catch (ExecutionException ex) {
-            throw new IterationException("Wrapped exception", ex.getCause());
-        } catch (InterruptedException|IOException ex) {
-            throw new IterationException("Wrapped exception", ex);
+    public Either<IOException, JsonValue> next() {
+        /* make sure that at least one batch of work has been submitted */
+        advance();
+        /* if a result is ready, return it */
+        Either<IOException, JsonValue> head = _complete.pollFirst();
+        if (head == null) {
+            /* otherwise, wait for the oldest batch to complete, and
+             * return that */
+            HttpFuture<JsonValue> next = _submit.pollFirst();
+            if (next == null) throw new NoSuchElementException();
+            head = next.get();
         }
+        /* and since at least one item has been completed, submit as
+         * much work as we can. */
+        advance();
+        return head;
     }
 
     public void remove() {
@@ -56,18 +51,22 @@ class PostAnnotationsIterator implements Iterator<JsonValue> {
      * Consumes any already-complete futures so that the issue slots are
      * available, and then issues more batches to fill avaialable slots.
      */
-    private void advance()
-          throws IOException, ExecutionException, InterruptedException {
+    private void advance() {
         // grab all of the completed items off of the pending queue
-        for (Future<JsonValue> head = _submit.peekFirst();
+        for (HttpFuture<JsonValue> head = _submit.peekFirst();
                  head != null && head.isDone();
                  head = _submit.peekFirst()) {
             _submit.removeFirst();
             _complete.add(head.get());
         }
 
-        while (_annotations.hasNext() && _submit.size() < SUBMIT_LIMIT)
-            _submit.add(submitNextBatch());
+        while (_annotations.hasNext() && _submit.size() < SUBMIT_LIMIT) {
+            try {
+                _submit.add(submitNextBatch());
+            } catch (IOException ex) {
+                _submit.add(HttpFuture.wrap(HttpIssueError.wrap(ex)));
+            }
+        }
     }
 
     /**
@@ -77,7 +76,7 @@ class PostAnnotationsIterator implements Iterator<JsonValue> {
      *
      * @return A Future representing the completion of the batch.
      */
-    private Future<JsonValue> submitNextBatch() throws IOException {
+    private HttpFuture<JsonValue> submitNextBatch() throws IOException {
         Map<String, JsonArrayBuilder> batch = new HashMap<>();
         int batchSize = 0;
 
@@ -139,8 +138,10 @@ class PostAnnotationsIterator implements Iterator<JsonValue> {
         _collection = collection;
     }
 
-    private final LinkedList<Future<JsonValue>> _submit = new LinkedList<>();
-    private final LinkedList<JsonValue> _complete = new LinkedList<>();
+    private final LinkedList<HttpFuture<JsonValue>> _submit =
+        new LinkedList<>();
+    private final LinkedList<Either<IOException, JsonValue>> _complete =
+        new LinkedList<>();
     private final Iterator<? extends Annotation> _annotations;
     private final Collection _collection;
 

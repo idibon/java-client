@@ -5,12 +5,10 @@ package com.idibon.api.model;
 
 import java.util.*;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
-
 import java.io.IOException;
 import javax.json.*;
 
+import com.idibon.api.util.Either;
 import com.idibon.api.http.HttpInterface;
 import com.idibon.api.model.Collection;
 import static com.idibon.api.model.Util.JSON_BF;
@@ -247,15 +245,11 @@ public class Task extends IdibonHash {
               .add("config", JSON_BF.createObjectBuilder()
                 .add("tuning", Util.toJson(tuning)).build()).build()).build();
 
-        Future<JsonValue> result = _httpIntf.httpPost(getEndpoint(), task);
-        try {
-            result.get();
-            invalidate();
-        } catch (ExecutionException ex) {
-            if (ex.getCause() instanceof IOException)
-                throw (IOException)ex.getCause();
-            throw new IOException("Error posting rules", ex.getCause());
-        } catch (InterruptedException ex) {}
+        Either<IOException, JsonValue> result =
+            _httpIntf.httpPost(getEndpoint(), task).get();
+
+        if (result.isLeft()) throw result.left;
+        invalidate();
     }
 
     /**
@@ -307,16 +301,11 @@ public class Task extends IdibonHash {
             .add("task", JSON_BF.createObjectBuilder()
               .add("config", JSON_BF.createObjectBuilder()
                 .add("tuning", Util.toJson(tuning)).build()).build()).build();
-        Future<JsonValue> result = _httpIntf.httpPost(getEndpoint(), task);
-        try {
-            result.get();
-            invalidate();
-        } catch (ExecutionException ex) {
-            if (ex.getCause() instanceof IOException)
-                throw (IOException)ex.getCause();
-            throw new IOException("Error posting rules", ex.getCause());
-        } catch (InterruptedException ex) {}
 
+        Either<IOException, JsonValue> result =
+            _httpIntf.httpPost(getEndpoint(), task).get();
+        if (result.isLeft()) throw result.left;
+        invalidate();
     }
 
     /**

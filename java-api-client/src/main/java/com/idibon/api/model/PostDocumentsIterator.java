@@ -6,10 +6,10 @@ package com.idibon.api.model;
 import java.io.IOException;
 
 import java.util.*;
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
-
 import javax.json.*;
+
+import com.idibon.api.util.Either;
+import com.idibon.api.http.HttpFuture;
 
 import static com.idibon.api.model.Util.JSON_BF;
 
@@ -17,7 +17,8 @@ import static com.idibon.api.model.Util.JSON_BF;
  * Background batch document upload process. Runs independently until
  * completion or an error occurs.
  */
-class PostDocumentsIterator implements Iterator<Document> {
+class PostDocumentsIterator
+      implements Iterator<Either<IOException, Document>> {
 
     public boolean hasNext() {
         return _contentToPost.hasNext() ||
@@ -25,8 +26,8 @@ class PostDocumentsIterator implements Iterator<Document> {
             !_resultQueue.isEmpty();
     }
 
-    public Document next() {
-        Document nextDoc = _resultQueue.pollFirst();
+    public Either<IOException, Document> next() {
+        Either<IOException, Document> nextDoc = _resultQueue.pollFirst();
         if (nextDoc == null) {
             waitForNextBatch();
             nextDoc = _resultQueue.pollFirst();
@@ -36,7 +37,9 @@ class PostDocumentsIterator implements Iterator<Document> {
         try {
             advance();
         } catch (IOException ex) {
-            throw new IterationException("Error posting data to API", ex);
+            /* add the error to the submit queue, so it will be returned to
+             * the caller in issue-order */
+            _submitQueue.add(HttpFuture.wrap(HttpIssueError.wrap(ex)));
         }
         return nextDoc;
     }
@@ -52,7 +55,7 @@ class PostDocumentsIterator implements Iterator<Document> {
     void advance() throws IOException {
         /* search for any complete results, grab the results, and dispatch
          * additional requests */
-        for (Future<JsonValue> head = _submitQueue.peek();
+        for (HttpFuture<JsonValue> head = _submitQueue.peek();
                head != null && head.isDone(); head = _submitQueue.peek()) {
             waitForNextBatch(); // no wait actually needed
         }
@@ -87,26 +90,25 @@ class PostDocumentsIterator implements Iterator<Document> {
      */
     private void waitForNextBatch() {
         // throw an exception if there isn't a batch
-        Future<JsonValue> nextBatch = _submitQueue.removeFirst();
-        JsonValue result;
-        try {
-            result = nextBatch.get();
-        } catch (ExecutionException ex) {
-            throw new IterationException("API operation failed", ex.getCause());
-        } catch (InterruptedException ex) {
-            throw new IterationException("API op interrupted", ex.getCause());
+        Either<IOException, JsonObject> result =
+            _submitQueue.removeFirst().getAs(JsonObject.class);
+
+        if (result.isLeft()) {
+            // FIXME: add this for each document?
+            _resultQueue.add(Either.<IOException, Document>left(result.left));
+        } else {
+            JsonArray documents = result.right.getJsonArray("documents");
+            if (documents == null) {
+                _resultQueue.add(Either.<IOException, Document>
+                                 left(new IOException("No data")));
+            } else {
+                for (JsonObject doc : documents.getValuesAs(JsonObject.class)) {
+                    _resultQueue.add(Either.<IOException, Document>right(
+                        _collection.document(doc.getString("name")))
+                    );
+                }
+            }
         }
-
-        if (!(result instanceof JsonObject))
-            throw new IterationException("Unexpected API response");
-
-        JsonArray documents = ((JsonObject)result).getJsonArray("documents");
-
-        if (documents == null)
-            throw new IterationException("API response contained no data");
-
-        for (JsonObject doc : documents.getValuesAs(JsonObject.class))
-            _resultQueue.add(_collection.document(doc.getString("name")));
     }
 
     /**
@@ -136,10 +138,12 @@ class PostDocumentsIterator implements Iterator<Document> {
     private final Iterator<? extends DocumentContent> _contentToPost;
 
     // Outstanding POST requests
-    private final Deque<Future<JsonValue>> _submitQueue = new LinkedList<>();
+    private final Deque<HttpFuture<JsonValue>> _submitQueue =
+        new LinkedList<>();
 
     // Document objects pending in the result queue
-    private final Deque<Document> _resultQueue = new LinkedList<>();
+    private final Deque<Either<IOException, Document>> _resultQueue =
+        new LinkedList<>();
 
     // Cap on the number of outstanding post batches
     private static final int SUBMIT_LIMIT = 10;
