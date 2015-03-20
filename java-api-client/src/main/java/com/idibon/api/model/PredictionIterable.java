@@ -33,7 +33,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
      * affected the prediction.
      *
      * This is the same as calling
-     * {@link com.idibon.api.model.PredictionIterable#withSignificantFeatures(Float)}
+     * {@link com.idibon.api.model.PredictionIterable#withSignificantFeatures(double)}
      * with a value of DEFAULT_FEATURE_THRESHOLD.
      *
      * @return This

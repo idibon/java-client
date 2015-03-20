@@ -212,6 +212,38 @@ public class IdibonAPI_IT {
         }
     }
 
+    @Test public void canAddAndDeleteTuningRules() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task task = c.task("Sentiment");
+        Label label = task.label("Neutral0");
+        TuningRules.Rule rule = label.createRule("hiybbprqag", 0.75);
+        task.addRules(rule);
+        try {
+            task.invalidate();
+            assertThat(label.getRules(), hasSize(1));
+            assertThat(label.getRules().get(0).phrase, is(rule.phrase));
+            assertThat(label.getRules().get(0).weight, is(rule.weight));
+            TuningRules.Rule update = label.createRule(rule.phrase, 0.95);
+            task.addRules(update);
+            task.invalidate();
+            assertThat(label.getRules(), hasSize(1));
+            assertThat(label.getRules().get(0).phrase, is(update.phrase));
+            assertThat(label.getRules().get(0).weight, is(update.weight));
+            // should be a no-op, since the weights don't match
+            task.deleteRules(rule);
+            task.invalidate();
+            assertThat(label.getRules(), hasSize(1));
+            // update which rule will be deleted in the finally block
+            rule = update;
+        } finally {
+            task.deleteRules(rule);
+        }
+        task.invalidate();
+        /* move this outside the try, so that it doesn't clobber an
+         * earlier exception */
+        assertThat(label.getRules(), is(empty()));
+    }
+
     @AfterClass public static void shutdown() {
         _apiClient.shutdown(0);
     }
