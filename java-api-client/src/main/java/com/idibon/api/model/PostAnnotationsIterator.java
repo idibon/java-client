@@ -17,25 +17,30 @@ import static com.idibon.api.model.Util.JSON_BF;
  * Utility class to batch and post annotation updates to one or more documents.
  */
 class PostAnnotationsIterator
-      implements Iterator<Either<IOException, JsonValue>> {
+      implements Iterator<Either<APIFailure<List<Annotation>>, Void>> {
 
     public boolean hasNext() {
-        return _annotations.hasNext() ||
+        return (!_quit && _annotations.hasNext()) ||
             !_submit.isEmpty() ||
             !_complete.isEmpty();
     }
 
-    public Either<IOException, JsonValue> next() {
+    public Either<APIFailure<List<Annotation>>, Void> next() {
         /* make sure that at least one batch of work has been submitted */
         advance();
         /* if a result is ready, return it */
-        Either<IOException, JsonValue> head = _complete.pollFirst();
+        Either<APIFailure<List<Annotation>>, Void> head = _complete.pollFirst();
+
         if (head == null) {
             /* otherwise, wait for the oldest batch to complete, and
              * return that */
-            HttpFuture<JsonValue> next = _submit.pollFirst();
+            Request next = _submit.peekFirst();
             if (next == null) throw new NoSuchElementException();
-            head = next.get();
+            // wait for the next item to complete
+            next.future.get();
+            advance();
+            head = _complete.pollFirst();
+            if (head == null) throw new NoSuchElementException();
         }
         /* and since at least one item has been completed, submit as
          * much work as we can. */
@@ -53,19 +58,27 @@ class PostAnnotationsIterator
      */
     private void advance() {
         // grab all of the completed items off of the pending queue
-        for (HttpFuture<JsonValue> head = _submit.peekFirst();
-                 head != null && head.isDone();
+        for (Request head = _submit.peekFirst();
+                 head != null && head.future.isDone();
                  head = _submit.peekFirst()) {
             _submit.removeFirst();
-            _complete.add(head.get());
+            Either<IOException, JsonValue> result = head.future.get();
+            if (result.isLeft()) {
+                APIFailure<List<Annotation>> err =
+                    APIFailure.failure(result.left, head.batch);
+                _complete.add(
+                    Either.<APIFailure<List<Annotation>>, Void>left(err)
+                );
+            } else {
+                _complete.add(
+                    Either.<APIFailure<List<Annotation>>, Void>right(null)
+                );
+            }
         }
 
-        while (_annotations.hasNext() && _submit.size() < SUBMIT_LIMIT) {
-            try {
-                _submit.add(submitNextBatch());
-            } catch (IOException ex) {
-                _submit.add(HttpFuture.wrap(HttpIssueError.wrap(ex)));
-            }
+        while (_annotations.hasNext() && !_quit &&
+                 _submit.size() < SUBMIT_LIMIT) {
+            submitNextBatch();
         }
     }
 
@@ -76,11 +89,15 @@ class PostAnnotationsIterator
      *
      * @return A Future representing the completion of the batch.
      */
-    private HttpFuture<JsonValue> submitNextBatch() throws IOException {
+    private void submitNextBatch() {
         Map<String, JsonArrayBuilder> batch = new HashMap<>();
-        int batchSize = 0;
+        Request req = new Request();
 
-        while (_annotations.hasNext() && batchSize < BATCH_LIMIT) {
+        // a pseudo-request in case a failure happens in JSON serialization
+        Request failure = null;
+
+        while (_annotations.hasNext() && !_quit && failure == null &&
+                 req.batch.size() < BATCH_LIMIT) {
             Annotation ann = _annotations.next();
             Document doc = getTargetDocument(ann);
             JsonArrayBuilder documentAnns = batch.get(doc.getName());
@@ -88,26 +105,42 @@ class PostAnnotationsIterator
                 documentAnns = JSON_BF.createArrayBuilder();
                 batch.put(doc.getName(), documentAnns);
             }
-            documentAnns.add(Util.toJson(ann));
+            try {
+                documentAnns.add(Util.toJson(ann));
+                req.batch.add(ann);
+            } catch (IOException ex) {
+                failure = new Request();
+                failure.batch.add(ann);
+                failure.future = HttpFuture.wrap(HttpIssueError.wrap(ex));
+            }
         }
 
-        JsonArrayBuilder batchJson = JSON_BF.createArrayBuilder();
-        for (Map.Entry<String, JsonArrayBuilder> entry : batch.entrySet()) {
-            /* create a JSON hash { name: $name, annotations: $annotations }
-             * for each document in the map, and add it to the array batch */
-            batchJson.add(JSON_BF.createObjectBuilder()
-                .add(Document.Keys.name.name(), entry.getKey())
-                .add(Document.Keys.annotations.name(), entry.getValue().build())
+        if (!req.batch.isEmpty()) {
+            JsonArrayBuilder batchJson = JSON_BF.createArrayBuilder();
+            for (Map.Entry<String, JsonArrayBuilder> entry : batch.entrySet()) {
+                /* create a JSON hash { name: $name, annotations: $annotations }
+                 * for each document in the map, and add it to the json batch */
+                JsonArray documentBatch = entry.getValue().build();
+                batchJson.add(JSON_BF.createObjectBuilder()
+                    .add(Document.Keys.name.name(), entry.getKey())
+                    .add(Document.Keys.annotations.name(), documentBatch)
+                    .build());
+            }
+
+            String endpoint = _collection.getEndpoint() + "/*";
+
+            // add the array to a hash { documents: $array } and POST it
+            req.future = _collection.getInterface().httpPost(endpoint,
+                JSON_BF.createObjectBuilder()
+                .add("documents", batchJson.build())
                 .build());
+            _submit.add(req);
         }
 
-        String endpoint = _collection.getEndpoint() + "/*";
-
-        // add the array to a hash { documents: $array } and POST it
-        return _collection.getInterface().httpPost(endpoint,
-            JSON_BF.createObjectBuilder()
-            .add("documents", batchJson.build())
-            .build());
+        if (failure != null) {
+            _submit.add(failure);
+            _quit = _stopOnError;
+        }
     }
 
     /**
@@ -133,17 +166,21 @@ class PostAnnotationsIterator
     }
 
     PostAnnotationsIterator(Collection collection,
-          Iterator<? extends Annotation> annotations) {
+          Iterator<? extends Annotation> annotations,
+          boolean stopOnError) {
         _annotations = annotations;
         _collection = collection;
+        _stopOnError = stopOnError;
     }
 
-    private final LinkedList<HttpFuture<JsonValue>> _submit =
+    private final LinkedList<Request> _submit =
         new LinkedList<>();
-    private final LinkedList<Either<IOException, JsonValue>> _complete =
-        new LinkedList<>();
+    private final LinkedList<Either<APIFailure<List<Annotation>>, Void>>
+        _complete = new LinkedList<>();
     private final Iterator<? extends Annotation> _annotations;
     private final Collection _collection;
+    private final boolean _stopOnError;
+    private boolean _quit;
 
     /* Batching annotation updates into groups of 40 seems to work well in
      * practice, and dramatically reduces network overhead */
@@ -152,4 +189,13 @@ class PostAnnotationsIterator
     /* Annotation updates are pretty heavy-weight API operations, so limit
      * the total number in-flight to ~100. */
     private static final int SUBMIT_LIMIT = 3;
+
+    /**
+     * Union type of the annotations submitted in the HTTP request and the
+     * promised result.
+     */
+    private static class Request {
+        HttpFuture<JsonValue> future;
+        List<Annotation> batch = new ArrayList<>();
+    }
 }

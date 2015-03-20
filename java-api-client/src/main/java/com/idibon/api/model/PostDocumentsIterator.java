@@ -18,29 +18,25 @@ import static com.idibon.api.model.Util.JSON_BF;
  * completion or an error occurs.
  */
 class PostDocumentsIterator
-      implements Iterator<Either<IOException, Document>> {
+      implements Iterator<Either<APIFailure<List<DocumentContent>>, Document>> {
 
     public boolean hasNext() {
-        return _contentToPost.hasNext() ||
+        return (_contentToPost.hasNext() && !_quit)||
             !_submitQueue.isEmpty() ||
             !_resultQueue.isEmpty();
     }
 
-    public Either<IOException, Document> next() {
-        Either<IOException, Document> nextDoc = _resultQueue.pollFirst();
+    public Either<APIFailure<List<DocumentContent>>, Document> next() {
+        Either<APIFailure<List<DocumentContent>>, Document> nextDoc =
+            _resultQueue.pollFirst();
+
         if (nextDoc == null) {
             waitForNextBatch();
             nextDoc = _resultQueue.pollFirst();
             if (nextDoc == null)
                 throw new NoSuchElementException("No more documents");
         }
-        try {
-            advance();
-        } catch (IOException ex) {
-            /* add the error to the submit queue, so it will be returned to
-             * the caller in issue-order */
-            _submitQueue.add(HttpFuture.wrap(HttpIssueError.wrap(ex)));
-        }
+        advance();
         return nextDoc;
     }
 
@@ -52,37 +48,62 @@ class PostDocumentsIterator
      * Consume any completed batch uploads, then dispatch more if free
      * slots are available.
      */
-    void advance() throws IOException {
+    void advance() {
         /* search for any complete results, grab the results, and dispatch
          * additional requests */
-        for (HttpFuture<JsonValue> head = _submitQueue.peek();
-               head != null && head.isDone(); head = _submitQueue.peek()) {
+        for (Request head = _submitQueue.peek();
+               head != null && head.future.isDone();
+               head = _submitQueue.peek()) {
             waitForNextBatch(); // no wait actually needed
         }
 
         long estimatedSize = 0;
         JsonArrayBuilder batch = null;
+        List<DocumentContent> rawBatch = null;
 
         /* For performance, upload documents in batches, and upload multiple
          * batches in parallel. Empirically, the best performance seems to be
          * when the upload batch size 25KiB - 100KiB. */
-        while (_submitQueue.size() < SUBMIT_LIMIT && _contentToPost.hasNext()) {
+        while (_submitQueue.size() < SUBMIT_LIMIT &&
+               !_quit && _contentToPost.hasNext()) {
             // create a new array for this batch of documents, if needed
             if (batch == null) batch = JSON_BF.createArrayBuilder();
+            if (rawBatch == null) rawBatch = new ArrayList<>();
 
-            JsonObject object = Util.toJson(_contentToPost.next());
-            batch.add(object);
-            estimatedSize += Util.estimateSizeOfJson(object);
+            DocumentContent item = _contentToPost.next();
+
+            try {
+                JsonObject object = Util.toJson(item);
+                batch.add(object);
+                rawBatch.add(item);
+                estimatedSize += Util.estimateSizeOfJson(object);
+            } catch (IOException ex) {
+                // submit any documents already converted
+                submitBatch(rawBatch, batch);
+                // submit a pseudo-batch for the failed document
+                Request broken = new Request();
+                broken.batch = Arrays.asList(item);
+                broken.future = HttpFuture.wrap(HttpIssueError.wrap(ex));
+                _submitQueue.add(broken);
+                // mark the quit flag if stop on error is true
+                _quit = _stopOnError;
+                if (!_quit) {
+                    // reset for the next batch if upload will continue
+                    rawBatch.clear();
+                    batch = JSON_BF.createArrayBuilder();
+                }
+            }
 
             if (estimatedSize >= BATCH_UPLOAD_TARGET) {
-                submitBatch(batch);
+                submitBatch(rawBatch, batch);
                 batch = JSON_BF.createArrayBuilder();
+                rawBatch.clear();
                 estimatedSize = 0;
             }
         }
 
-        if (estimatedSize > 0)
-            submitBatch(batch);
+        // submit the last partial batch, if one exists
+        submitBatch(rawBatch, batch);
     }
 
     /**
@@ -90,23 +111,25 @@ class PostDocumentsIterator
      */
     private void waitForNextBatch() {
         // throw an exception if there isn't a batch
+        Request request = _submitQueue.removeFirst();
+
         Either<IOException, JsonObject> result =
-            _submitQueue.removeFirst().getAs(JsonObject.class);
+            request.future.getAs(JsonObject.class);
 
         if (result.isLeft()) {
-            // FIXME: add this for each document?
-            _resultQueue.add(Either.<IOException, Document>left(result.left));
+            APIFailure<List<DocumentContent>> err =
+                APIFailure.failure(result.left, request.batch);
+            _resultQueue.add(
+                Either.<APIFailure<List<DocumentContent>>, Document>left(err)
+             );
+            _quit = _stopOnError;
         } else {
             JsonArray documents = result.right.getJsonArray("documents");
-            if (documents == null) {
-                _resultQueue.add(Either.<IOException, Document>
-                                 left(new IOException("No data")));
-            } else {
-                for (JsonObject doc : documents.getValuesAs(JsonObject.class)) {
-                    _resultQueue.add(Either.<IOException, Document>right(
-                        _collection.document(doc.getString("name")))
-                    );
-                }
+            for (JsonObject doc : documents.getValuesAs(JsonObject.class)) {
+                _resultQueue.add(
+                    Either.<APIFailure<List<DocumentContent>>, Document>right(
+                        _collection.document(doc.getString("name"))
+                    ));
             }
         }
     }
@@ -114,22 +137,32 @@ class PostDocumentsIterator
     /**
      * POST a batch of documents to the API.
      */
-    private void submitBatch(JsonArrayBuilder batch) throws IOException {
+    private void submitBatch(List<DocumentContent> rawBatch,
+          JsonArrayBuilder batch) {
+        if (rawBatch == null || rawBatch.isEmpty())
+            return;
         JsonObject body = JSON_BF.createObjectBuilder()
             .add("documents", batch)
             .build();
 
         String ep = _collection.getEndpoint() + "/*";
-        _submitQueue.add(_collection.getInterface().httpPost(ep, body));
+        Request req = new Request();
+        req.future = _collection.getInterface().httpPost(ep, body);
+        req.batch = rawBatch;
+        _submitQueue.add(req);
     }
 
     PostDocumentsIterator(Collection collection,
-          Iterator<? extends DocumentContent> contentToPost)
-          throws IOException {
+          Iterator<? extends DocumentContent> contentToPost,
+          boolean stopOnError) throws IOException {
         _contentToPost = contentToPost;
         _collection = collection;
+        _stopOnError = stopOnError;
         advance();
     }
+
+    // Terminates iteration prematurely
+    private boolean _quit;
 
     // Collection being posted to
     private final Collection _collection;
@@ -137,17 +170,27 @@ class PostDocumentsIterator
     // Content to post
     private final Iterator<? extends DocumentContent> _contentToPost;
 
+    // Stops submitting more batches following an error
+    private final boolean _stopOnError;
+
     // Outstanding POST requests
-    private final Deque<HttpFuture<JsonValue>> _submitQueue =
-        new LinkedList<>();
+    private final Deque<Request> _submitQueue = new LinkedList<>();
 
     // Document objects pending in the result queue
-    private final Deque<Either<IOException, Document>> _resultQueue =
-        new LinkedList<>();
+    private final Deque<Either<APIFailure<List<DocumentContent>>, Document>>
+        _resultQueue = new LinkedList<>();
 
     // Cap on the number of outstanding post batches
     private static final int SUBMIT_LIMIT = 10;
 
     // Target size (in bytes) for a document batch
     private static final long BATCH_UPLOAD_TARGET = 25000;
+
+    /**
+     * Simple tuple storing the requested batch and the promised result.
+     */
+    private static class Request {
+        HttpFuture<JsonValue> future;
+        List<DocumentContent> batch;
+    }
 }
