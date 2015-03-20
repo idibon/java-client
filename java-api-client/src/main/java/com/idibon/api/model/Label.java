@@ -5,8 +5,10 @@ package com.idibon.api.model;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
+import java.util.NoSuchElementException;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import javax.json.*;
 
 /**
@@ -15,10 +17,88 @@ import javax.json.*;
 public class Label {
 
     /**
+     * Keys that may be present in a Label JSON.
+     */
+    public enum Keys {
+        /**
+         * Date the label was created (<tt>ISO-8601 String</tt>).
+         */
+        created_at,
+        /**
+         * Detailed description of the element (<tt>String</tt>).
+         */
+        description,
+        /**
+         * Indicates if the Label is active (<tt>Boolean</tt>).
+         */
+        is_active,
+        /**
+         * The name of the Label (<tt>String</tt>).
+         */
+        name,
+        /**
+         * The UUID of the {@link com.idibon.api.model.Task} that own
+         * this label (<tt>UUID String</tt>).
+         */
+        task_id,
+        /**
+         * Date the label was most recently updated (<tt>ISO-8601 String</tt>).
+         */
+        updated_at,
+        /**
+         * UUID for the label (<tt>ISO-8601 String</tt>).
+         */
+        uuid;
+    }
+
+    /**
+     * Return the JSON detailed data for this label.
+     *
+     * @return The {@link javax.json.JsonObject} detailed data for this label.
+     * @throws NoSuchElementException if the label is not found in the task.
+     */
+    public JsonObject getJson() throws IOException {
+        JsonArray allLabels = _task.get(Task.Keys.labels);
+        for (JsonObject label : allLabels.getValuesAs(JsonObject.class)) {
+            if (label.getString("name").equals(_name))
+                return label;
+        }
+
+        throw new NoSuchElementException("Not in task: '" + _name + "'");
+    }
+
+    /**
+     * Returns the label's UUID.
+     *
+     * @return UUID for the label.
+     * @throw NoSuchElementException if the label hasn't been committed
+     * @throw IOException if an error occurs communicating over the API.
+     */
+    public UUID getUUID() throws IOException {
+        String raw = getJson().getString(Keys.uuid.name(), null);
+        return UUID.fromString(raw);
+    }
+
+    /**
+     * Returns the long description for this label, if present.
+     */
+    public String getDescription() throws IOException {
+        return getJson().getString(Keys.description.name(), null);
+    }
+
+    /**
      * Gets the name of the label.
      */
     public String getName() {
         return _name;
+    }
+
+    /**
+     * Deletes the label.
+     */
+    public void delete() throws IOException {
+        getTask().invalidate();
+        getTask().evict(this);
     }
 
     /**

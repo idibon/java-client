@@ -21,6 +21,62 @@ import static com.idibon.api.model.Util.JSON_BF;
 public class Collection extends IdibonHash {
 
     /**
+     * Keys that may appear in the raw JSON hash.
+     */
+    public enum Keys {
+        /**
+         * Arbitrary configuration data (<tt>JsonObject</tt>).
+         */
+        config,
+        /**
+         * Date the collection was created (<tt>ISO-8601 String</tt>).
+         */
+        created_at,
+        /**
+         * User-friendly description of the collection (<tt>String</tt>).
+         */
+        description,
+        /**
+         * Reserved (<tt>Boolean</tt>).
+         */
+        is_active,
+        /**
+         * Reserved (<tt>Boolean</tt>)
+         */
+        is_public,
+        /**
+         * Name of the collection (<tt>String</tt>).
+         */
+        name,
+        /**
+         * Reserved (<tt>JsonArray</tt>).
+         */
+        streams,
+        /**
+         * UUID of the subscriber who created the collection
+         * (<tt>UUID String</tt>).
+         */
+        subscriber_id,
+        /**
+         * All of the tasks in this collection (<tt>JsonArray</tt>).
+         */
+        tasks,
+        /**
+         * Date of most recent change to the collection or any task in it
+         * (<tt>ISO-8601 String</tt>).
+         */
+        touched_at,
+        /**
+         * Date the collection was most last changed (<tt>ISO-8601 String</tt>).
+         */
+        updated_at,
+        /**
+         * UUID of the collection (<tt>UUID String</tt>).
+         */
+        uuid;
+    }
+
+    /**
      * Returns the raw JSON data for this Collection
      */
     @Override public JsonObject getJson() throws IOException {
@@ -38,6 +94,28 @@ public class Collection extends IdibonHash {
             _cachedTasks = m;
         }
         return collection;
+    }
+
+    /**
+     * Returns the value in the JSON hash for the specified key.
+     *
+     * @param key The value in the JSON hash to return
+     * @return The value in the hash at key
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends JsonValue> T get(Keys key) throws IOException {
+        return (T)getJson().get(key.name());
+    }
+
+    /**
+     * Returns the tasks defined for this collection.
+     */
+    public List<? extends Task> getTasks() throws IOException {
+        JsonArray taskArray = get(Keys.tasks);
+        List<Task> tasks = new ArrayList<>(taskArray.size());
+        for (JsonObject taskJson : taskArray.getValuesAs(JsonObject.class))
+            tasks.add(task(taskJson.getString(Task.Keys.name.name())));
+        return tasks;
     }
 
     /**

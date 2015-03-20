@@ -159,9 +159,25 @@ public class Task extends IdibonHash {
 
     /**
      * Returns the Task scope
+     *
+     * @return {@link com.idibon.api.model.Task.Scope} for this task.
      */
     public Scope getScope() throws IOException {
         return Scope.valueOf((this.<JsonString>get(Keys.scope)).getString());
+    }
+
+    /**
+     * Returns all of the labels within this task.
+     */
+    public List<? extends Label> getLabels() throws IOException {
+        JsonArray labelJson = get(Keys.labels);
+        List<Label> javaLabels = new ArrayList<>(labelJson.size());
+        for (JsonObject label : labelJson.getValuesAs(JsonObject.class)) {
+            javaLabels.add(
+              Label.instance(this, label.getString(Label.Keys.name.name()))
+            );
+        }
+        return javaLabels;
     }
 
     /**
