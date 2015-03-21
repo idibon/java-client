@@ -223,8 +223,6 @@ public class Task extends IdibonHash {
      * and {@link com.idibon.api.model.Task#deleteRules} are serialized
      * to ensure consistent results.
      *
-     * Cached API responses are invalidated following a successful update.
-     *
      * @param rules List of rules to add. If an identical rule already exists
      *        in the task, the rules' weight will be updated to the new value.
      */
@@ -261,11 +259,14 @@ public class Task extends IdibonHash {
               .add("config", JSON_BF.createObjectBuilder()
                 .add("tuning", Util.toJson(tuning)).build()).build()).build();
 
-        Either<IOException, JsonValue> result =
-            _httpIntf.httpPost(getEndpoint(), task).get();
+        /* the API returns the entire task structure on a successful update,
+         * so switch to it after a successful POST */
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
 
         if (result.isLeft()) throw result.left;
-        invalidate();
+        invalidate(); // invalidate cached parse results
+        preload(result.right);
     }
 
     /**
@@ -278,8 +279,6 @@ public class Task extends IdibonHash {
      * take care to ensure that all calls to {@link com.idibon.api.model.Task#addRules}
      * and {@link com.idibon.api.model.Task#deleteRules} are serialized
      * to ensure consistent results.
-     *
-     * Cached API responses are invalidated following a successful update.
      *
      * @param rules Array of tuning rules to delete from this task's tuning
      *        dictionary. All of the rules must be for labels within this task.
@@ -309,6 +308,8 @@ public class Task extends IdibonHash {
                     break;
                 }
             }
+
+            if (labelRules.isEmpty()) tuning.remove(rule.label);
         }
 
         if (!dirty) return;  // no changes needed, don't upload
@@ -318,10 +319,13 @@ public class Task extends IdibonHash {
               .add("config", JSON_BF.createObjectBuilder()
                 .add("tuning", Util.toJson(tuning)).build()).build()).build();
 
-        Either<IOException, JsonValue> result =
-            _httpIntf.httpPost(getEndpoint(), task).get();
+        /* the API returns the entire task structure on a successful update,
+         * so switch to it after a successful POST */
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
         if (result.isLeft()) throw result.left;
-        invalidate();
+        invalidate(); // clear out cached parse results
+        preload(result.right);
     }
 
     /**
@@ -393,10 +397,11 @@ public class Task extends IdibonHash {
                 .add(OntologyNode.CONFIG_SUBTASK_KEY,
                      Util.toJson(node)).build()).build()).build();
 
-        Either<IOException, JsonValue> result =
-            _httpIntf.httpPost(getEndpoint(), task).get();
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
         if (result.isLeft()) throw result.left;
-        invalidate();
+        invalidate(); // clear out cached parse results
+        preload(result.right);
     }
 
     /**
@@ -421,6 +426,8 @@ public class Task extends IdibonHash {
             }
         }
 
+        if (triggered.isEmpty()) node.remove(trigger);
+
         if (!dirty) return;
         JsonObject task = JSON_BF.createObjectBuilder()
             .add("task", JSON_BF.createObjectBuilder()
@@ -428,10 +435,11 @@ public class Task extends IdibonHash {
                 .add(OntologyNode.CONFIG_SUBTASK_KEY,
                      Util.toJson(node)).build()).build()).build();
 
-        Either<IOException, JsonValue> result =
-            _httpIntf.httpPost(getEndpoint(), task).get();
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
         if (result.isLeft()) throw result.left;
-        invalidate();
+        invalidate(); // clear out cached parsed results
+        preload(result.right);
     }
 
     /**

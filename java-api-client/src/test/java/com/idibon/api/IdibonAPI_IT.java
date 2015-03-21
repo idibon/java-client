@@ -234,29 +234,41 @@ public class IdibonAPI_IT {
         TuningRules.Rule rule = label.createRule("hiybbprqag", 0.75);
         task.addRules(rule);
         try {
-            task.invalidate();
             assertThat(label.getRules(), hasSize(1));
             assertThat(label.getRules().get(0).phrase, is(rule.phrase));
             assertThat(label.getRules().get(0).weight, is(rule.weight));
             TuningRules.Rule update = label.createRule(rule.phrase, 0.95);
             task.addRules(update);
-            task.invalidate();
             assertThat(label.getRules(), hasSize(1));
             assertThat(label.getRules().get(0).phrase, is(update.phrase));
             assertThat(label.getRules().get(0).weight, is(update.weight));
             // should be a no-op, since the weights don't match
             task.deleteRules(rule);
-            task.invalidate();
             assertThat(label.getRules(), hasSize(1));
             // update which rule will be deleted in the finally block
             rule = update;
         } finally {
             task.deleteRules(rule);
         }
-        task.invalidate();
         /* move this outside the try, so that it doesn't clobber an
          * earlier exception */
         assertThat(label.getRules(), is(empty()));
+    }
+
+    @Test public void canAddAndRemoveSubtasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task task = c.task("Relevance");
+        Label label = task.label("Relevant");
+        Task subtask = c.task("Sentiment");
+        task.addSubtaskTriggers(label, subtask);
+        try {
+            Map<Label, Set<? extends Task>> ontology = task.getSubtasks();
+            assertThat(ontology, hasKey(label));
+            assertThat(ontology.get(label), contains(subtask));
+        } finally {
+            task.deleteSubtaskTriggers(label, subtask);
+        }
+        assertThat(task.getSubtasks().keySet(), is(empty()));
     }
 
     @AfterClass public static void shutdown() {

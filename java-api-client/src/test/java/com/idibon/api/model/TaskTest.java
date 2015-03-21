@@ -24,6 +24,7 @@ public class TaskTest {
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
         assertThat(mockTask.getRules().keySet(), is(empty()));
+        assertThat(mockTask.getSubtasks().keySet(), is(empty()));
     }
 
     @Test public void testLoadRules() throws Exception {

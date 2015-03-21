@@ -129,14 +129,15 @@ public abstract class IdibonHash {
         /* Create a trivial Future instance for data that doesn't need
          * to be asynchronously loaded. Done outside the mutex to avoid
          * unnecessary object allocations inside a lock */
-        Future<JsonValue> preloaded = new Future<JsonValue>() {
-            public boolean cancel(boolean ignore) { return false; }
-            public JsonValue get() { return data; }
-            public JsonValue get(long t, TimeUnit u) { return data; }
-            public boolean isCancelled() { return false; }
-            public boolean isDone() { return true; }
-        };
-        synchronized(this) { _jsonFuture = HttpFuture.wrap(preloaded); }
+        HttpFuture<JsonValue> preloaded = HttpFuture.wrap(
+            new Future<JsonValue>() {
+                public boolean cancel(boolean ignore) { return false; }
+                public JsonValue get() { return data; }
+                public JsonValue get(long t, TimeUnit u) { return data; }
+                public boolean isCancelled() { return false; }
+                public boolean isDone() { return true; }
+            });
+        synchronized(this) { _jsonFuture = preloaded; }
         return (T)this;
     }
 
