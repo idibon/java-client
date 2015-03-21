@@ -63,6 +63,24 @@ final class Util {
     }
 
     /**
+     * Serializes a subtask ontology into a JsonObject.
+     *
+     * @param node The ontology to serialize
+     * @return {@link javax.json.JsonObject}
+     */
+    static JsonObject toJson(OntologyNode node) {
+        JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+        if (node != null) {
+            for (Map.Entry<Label, Set<Task>> entry : node.entrySet()) {
+                JsonArrayBuilder tasks = JSON_BF.createArrayBuilder();
+                for (Task t : entry.getValue()) tasks.add(t.getName());
+                bldr.add(entry.getKey().getName(), tasks.build());
+            }
+        }
+        return bldr.build();
+    }
+
+    /**
      * Creates a JsonObject from DocumentContent
      *
      * @param doc The document content that should be uploaded.

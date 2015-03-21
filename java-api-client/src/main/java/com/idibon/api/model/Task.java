@@ -325,12 +325,123 @@ public class Task extends IdibonHash {
     }
 
     /**
+     * Returns true if child is an ontological descendent of this task.
+     *
+     * @param child A {@link com.idibon.api.model.Task} to test.
+     * @return true if child is located within the ontology rooted at
+     *         the current node. false if not.
+     */
+    public boolean isDescendent(Task check) throws IOException {
+        Set<Task> tested = new HashSet<>();
+        Deque<Task> toTest = new LinkedList<Task>();
+        toTest.add(this);
+
+        while (!toTest.isEmpty()) {
+            Task head = toTest.removeFirst();
+            tested.add(head);
+            if (check.equals(head)) return true;
+            OntologyNode node = check.getCachedOntologyNode();
+            for (Set<Task> descendents : node.values()) {
+                for (Task descendent : descendents) {
+                    if (!tested.contains(descendent))
+                        toTest.add(descendent);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Returns the list of sub-tasks that are triggered by predictions
+     * for each {@link com.idibon.api.model.Label} in this task.
+     */
+    public Map<Label, Set<? extends Task>> getSubtasks() throws IOException {
+        return (Map<Label, Set<? extends Task>>)(Object)
+            Collections.unmodifiableMap(getCachedOntologyNode().clone());
+    }
+
+    /**
+     * Configures a subtask trigger: when a document is classified as the
+     * provided {@link com.idibon.api.model.Label}, the document should also
+     * be classified against the triggered {@link com.idibon.api.model.Task}.
+     *
+     * @param trigger The {@link com.idibon.api.model.Label} in this task that
+     *        will trigger the subtasks.
+     * @param tasks The new {@link com.idibon.api.model.Task} instances that
+     *        should be triggered by label.
+     */
+    public synchronized void addSubtaskTriggers(Label trigger, Task... tasks)
+          throws IOException {
+        OntologyNode node = getCachedOntologyNode().clone();
+        Set<Task> triggered = node.getOrDefault(trigger);
+        boolean dirty = false;
+
+        for (Task t : tasks) {
+            if (t.isDescendent(this))
+                throw new IllegalArgumentException("Cyclic Ontology");
+
+            if (!triggered.contains(t)) dirty = true;
+            triggered.add(t);
+        }
+
+        if (!dirty) return;  // no changes needed, don't upload
+
+        JsonObject task = JSON_BF.createObjectBuilder()
+            .add("task", JSON_BF.createObjectBuilder()
+              .add("config", JSON_BF.createObjectBuilder()
+                .add(OntologyNode.CONFIG_SUBTASK_KEY,
+                     Util.toJson(node)).build()).build()).build();
+
+        Either<IOException, JsonValue> result =
+            _httpIntf.httpPost(getEndpoint(), task).get();
+        if (result.isLeft()) throw result.left;
+        invalidate();
+    }
+
+    /**
+     * Deletes a subtask trigger.
+     *
+     * @param trigger The {@link com.idibon.api.model.Label} in this task that
+     *        triggers the subtasks.
+     * @param tasks The new {@link com.idibon.api.model.Task} instances that
+     *        should not be triggered by label.
+     */
+    public synchronized void deleteSubtaskTriggers(Label trigger, Task... tasks)
+          throws IOException {
+        OntologyNode node = getCachedOntologyNode().clone();
+        Set<Task> triggered = node.get(trigger);
+        if (triggered == null) return;
+
+        boolean dirty = false;
+        for (Task t : tasks) {
+            if (triggered.contains(t)) {
+                dirty = true;
+                triggered.remove(t);
+            }
+        }
+
+        if (!dirty) return;
+        JsonObject task = JSON_BF.createObjectBuilder()
+            .add("task", JSON_BF.createObjectBuilder()
+              .add("config", JSON_BF.createObjectBuilder()
+                .add(OntologyNode.CONFIG_SUBTASK_KEY,
+                     Util.toJson(node)).build()).build()).build();
+
+        Either<IOException, JsonValue> result =
+            _httpIntf.httpPost(getEndpoint(), task).get();
+        if (result.isLeft()) throw result.left;
+        invalidate();
+    }
+
+    /**
      * Forces cached JSON data to be reloaded from the server.
      */
     @SuppressWarnings("unchecked")
     @Override public Task invalidate() {
         super.invalidate();
         _tuningRules = null;
+        _ontology = null;
         return this;
     }
 
@@ -376,7 +487,18 @@ public class Task extends IdibonHash {
         return tuning;
     }
 
+    private OntologyNode getCachedOntologyNode() throws IOException {
+        OntologyNode node = _ontology;
+        if (node == null) {
+            node = OntologyNode.parse(this,
+                getJson().getJsonObject(Keys.config.name()));
+            _ontology = node;
+        }
+        return node;
+    }
+
     private volatile TuningRules _tuningRules;
+    private volatile OntologyNode _ontology;
     private final Collection _parent;
     private final String _name;
 }
