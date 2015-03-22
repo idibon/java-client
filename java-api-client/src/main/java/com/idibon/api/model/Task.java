@@ -9,6 +9,7 @@ import java.io.IOException;
 import javax.json.*;
 
 import com.idibon.api.util.Either;
+import com.idibon.api.util.Memoize;
 import com.idibon.api.http.HttpInterface;
 import com.idibon.api.model.Collection;
 import static com.idibon.api.model.Util.JSON_BF;
@@ -139,7 +140,7 @@ public class Task extends IdibonHash {
      * the current task.
      */
     public Label label(String name) {
-        return Label.instance(this, name);
+        return _labels.memoize(Label.instance(this, name));
     }
 
     /**
@@ -168,15 +169,15 @@ public class Task extends IdibonHash {
 
     /**
      * Returns all of the labels within this task.
+     *
+     * @return List of all of the {@link com.idibon.api.model.Label} objects
+     *         defined for this task.
      */
     public List<? extends Label> getLabels() throws IOException {
         JsonArray labelJson = get(Keys.labels);
         List<Label> javaLabels = new ArrayList<>(labelJson.size());
-        for (JsonObject label : labelJson.getValuesAs(JsonObject.class)) {
-            javaLabels.add(
-              Label.instance(this, label.getString(Label.Keys.name.name()))
-            );
-        }
+        for (JsonObject obj : labelJson.getValuesAs(JsonObject.class))
+            javaLabels.add(label(obj.getString(Label.Keys.name.name())));
         return javaLabels;
     }
 
@@ -479,6 +480,7 @@ public class Task extends IdibonHash {
         super(parent.getEndpoint() + "/" + percentEncode(name), httpIntf);
         _name = name;
         _parent = parent;
+        _labels = Memoize.cacheReferences(Label.class);
     }
 
     /**
@@ -507,6 +509,7 @@ public class Task extends IdibonHash {
 
     private volatile TuningRules _tuningRules;
     private volatile OntologyNode _ontology;
+    private final Memoize<Label> _labels;
     private final Collection _parent;
     private final String _name;
 }
