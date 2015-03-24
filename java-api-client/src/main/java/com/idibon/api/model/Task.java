@@ -13,6 +13,7 @@ import com.idibon.api.util.Memoize;
 import com.idibon.api.http.HttpInterface;
 import com.idibon.api.model.Collection;
 import static com.idibon.api.model.Util.JSON_BF;
+import static com.idibon.api.model.TuningRules.CONFIG_TUNING_KEY;
 
 /**
  * A machine learning task inside a Collection.
@@ -258,7 +259,8 @@ public class Task extends IdibonHash {
         JsonObject task = JSON_BF.createObjectBuilder()
             .add("task", JSON_BF.createObjectBuilder()
               .add("config", JSON_BF.createObjectBuilder()
-                .add("tuning", Util.toJson(tuning)).build()).build()).build();
+                .add(CONFIG_TUNING_KEY, Util.toJson(tuning)).build())
+              .build()).build();
 
         /* the API returns the entire task structure on a successful update,
          * so switch to it after a successful POST */
@@ -317,8 +319,9 @@ public class Task extends IdibonHash {
 
         JsonObject task = JSON_BF.createObjectBuilder()
             .add("task", JSON_BF.createObjectBuilder()
-              .add("config", JSON_BF.createObjectBuilder()
-                .add("tuning", Util.toJson(tuning)).build()).build()).build();
+              .add(Keys.config.name(), JSON_BF.createObjectBuilder()
+                .add(CONFIG_TUNING_KEY, Util.toJson(tuning)).build())
+              .build()).build();
 
         /* the API returns the entire task structure on a successful update,
          * so switch to it after a successful POST */

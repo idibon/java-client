@@ -23,6 +23,8 @@ public class TuningRules
       extends HashMap<Label, List<TuningRules.Rule>>
       implements Cloneable {
 
+    static final String CONFIG_TUNING_KEY = "tuning";
+
     /**
      * An individual rule (for a specific {@link com.idibon.api.model.Label}
      * in the tuning dictionary.
@@ -181,7 +183,7 @@ public class TuningRules
         if (configData == null)
             rules = new HashMap<>();
         else
-            rules = readJson(task, configData.getJsonObject("tuning"));
+            rules = readJson(task, configData.getJsonObject(CONFIG_TUNING_KEY));
         return new TuningRules(rules);
     }
 
