@@ -271,6 +271,48 @@ public class IdibonAPI_IT {
         assertThat(task.getSubtasks().keySet(), is(empty()));
     }
 
+    @Test public void canAddAndRemoveLabels() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task task = c.task("Relevance");
+        String desc = "This label is garbage";
+        Label garbage = task.createLabel("Garbage")
+            .setDescription(desc).commit();
+
+        try {
+            assertThat(task.label("Garbage"), is(sameInstance(garbage)));
+            assertThat((List<Label>)(Object)task.getLabels(), hasItem(garbage));
+            assertThat(garbage.getDescription(), is(desc));
+        } finally {
+            garbage.delete();
+        }
+
+        assertThat((List<Label>)(Object)task.getLabels(), not(hasItem(garbage)));
+    }
+
+    @Test public void automaticallyRenamesRulesAndSubtasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task task = c.task("Relevance");
+        Label garbage = task.createLabel("Garbage").commit();
+
+        try {
+            Label backup = garbage;
+            task.addRules(garbage.createRule("hiybbprqag", 0.75));
+            task.addSubtaskTriggers(garbage, c.task("Sentiment"));
+            garbage = garbage.modify().setName("GarbageGarbage").commit();
+            assertThat(garbage.getName(), is("GarbageGarbage"));
+            assertThat(task.getSubtasks(), hasKey(garbage));
+            assertThat(task.getSubtasks(), not(hasKey(backup)));
+            assertThat((Set<Task>)(Object)task.getSubtasks().get(garbage),
+                       hasItem(c.task("Sentiment")));
+            assertThat(garbage.getRules(), hasSize(1));
+            assertThat(garbage.getRules().get(0).phrase, is("hiybbprqag"));
+        } finally {
+            garbage.delete();
+        }
+
+        assertThat(task.getSubtasks().keySet(), is(empty()));
+    }
+
     @AfterClass public static void shutdown() {
         _apiClient.shutdown(0);
     }

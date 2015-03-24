@@ -14,6 +14,7 @@ import com.idibon.api.http.HttpInterface;
 import com.idibon.api.model.Collection;
 import static com.idibon.api.model.Util.JSON_BF;
 import static com.idibon.api.model.TuningRules.CONFIG_TUNING_KEY;
+import static com.idibon.api.model.OntologyNode.CONFIG_SUBTASK_KEY;
 
 /**
  * A machine learning task inside a Collection.
@@ -214,6 +215,21 @@ public class Task extends IdibonHash {
     }
 
     /**
+     * Creates a {@link com.idibon.api.model.LabelBuilder} instance to define
+     * a new {@link com.idibon.api.model.Label} for this Task.
+     *
+     * You must call {@link com.idibon.api.model.LabelBuilder#commit} on the
+     * returned object to save the new label to the API.
+     *
+     * @param name The name of the new label to create. Must be unique.
+     * @return A LabelBuilder to configure additional properties of the
+     *         new label.
+     */
+    public LabelBuilder createLabel(String name) {
+        return new LabelBuilder(this).setName(name);
+    }
+
+    /**
      * Adds new tuning rules to the task, or update the weights for existing
      * rules.
      *
@@ -363,7 +379,10 @@ public class Task extends IdibonHash {
     /**
      * Returns the list of sub-tasks that are triggered by predictions
      * for each {@link com.idibon.api.model.Label} in this task.
+     *
+     * @return Map of labels to subtasks
      */
+    @SuppressWarnings("unchecked")
     public Map<Label, Set<? extends Task>> getSubtasks() throws IOException {
         return (Map<Label, Set<? extends Task>>)(Object)
             Collections.unmodifiableMap(getCachedOntologyNode().clone());
@@ -398,8 +417,8 @@ public class Task extends IdibonHash {
         JsonObject task = JSON_BF.createObjectBuilder()
             .add("task", JSON_BF.createObjectBuilder()
               .add("config", JSON_BF.createObjectBuilder()
-                .add(OntologyNode.CONFIG_SUBTASK_KEY,
-                     Util.toJson(node)).build()).build()).build();
+                .add(CONFIG_SUBTASK_KEY, Util.toJson(node)).build())
+              .build()).build();
 
         Either<IOException, JsonObject> result =
             _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
@@ -436,8 +455,8 @@ public class Task extends IdibonHash {
         JsonObject task = JSON_BF.createObjectBuilder()
             .add("task", JSON_BF.createObjectBuilder()
               .add("config", JSON_BF.createObjectBuilder()
-                .add(OntologyNode.CONFIG_SUBTASK_KEY,
-                     Util.toJson(node)).build()).build()).build();
+                .add(CONFIG_SUBTASK_KEY, Util.toJson(node)).build())
+              .build()).build();
 
         Either<IOException, JsonObject> result =
             _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
@@ -470,6 +489,24 @@ public class Task extends IdibonHash {
         return _name.hashCode();
     }
 
+    /**
+     * Commits a list of created or modified labels to the API.
+     *
+     * @param changes All of the new labels to create or existing labels to
+     *        update.
+     * @return A list of all of the affected labels.
+     */
+    synchronized void commitLabelUpdate(Label existing,
+          String name) throws IOException {
+
+        if (existing != null && !existing.getName().equals(name)) {
+            updateLabelInConfig(existing.getName(), name);
+            _labels.remove(existing);
+        } else {
+            invalidate();
+        }
+    }
+
     static Task instance(Collection parent, String name) {
         return new Task(name, parent, parent.getInterface());
     }
@@ -484,6 +521,55 @@ public class Task extends IdibonHash {
         _name = name;
         _parent = parent;
         _labels = Memoize.cacheReferences(Label.class);
+    }
+
+    /**
+     * Private helper function to update all references to a renamed or
+     * deleted label in the ontology / rules / kit configurations, which
+     * rely on the string name for linkage rather than the UUID.
+     *
+     * @param oldName The (previous) name of the label that was changed
+     * @param newName The new name for the label, or null if the label
+     *        was deleted.
+     */
+    private void updateLabelInConfig(String oldName, String newName)
+          throws IOException {
+        JsonObject config = get(Keys.config);
+        if (config == null) return;
+
+        JsonObjectBuilder updates = null; // lazily created when needed
+
+        /* the tuning dictionary and ontology are both hashes of label name
+         * to opaque per-label data. both can be implemented by shallow-copying
+         * the hash, and renaming / skipping the key of the renamed label. */
+        for (String key : new String[]{CONFIG_TUNING_KEY, CONFIG_SUBTASK_KEY}) {
+            JsonObject old = config.getJsonObject(key);
+            if (old != null && old.get(oldName) != null) {
+                JsonObjectBuilder cloned = JSON_BF.createObjectBuilder();
+                for (Map.Entry<String, JsonValue> entry : old.entrySet()) {
+                    String target = entry.getKey();
+                    if (target.equals(oldName)) target = newName;
+                    if (target != null) cloned.add(target, entry.getValue());
+                }
+                if (updates == null) updates = JSON_BF.createObjectBuilder();
+                updates.add(key, cloned.build());
+            }
+        }
+
+        if (updates == null) {
+            invalidate();
+            return;
+        }
+
+        JsonObject task = JSON_BF.createObjectBuilder()
+          .add("task", JSON_BF.createObjectBuilder()
+             .add(Keys.config.name(), updates.build()).build()).build();
+
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
+        if (result.isLeft()) throw result.left;
+        invalidate(); // clear out cached parse results
+        preload(result.right);
     }
 
     /**

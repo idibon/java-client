@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.UUID;
 import javax.json.*;
 
+import com.idibon.api.util.Either;
+import static com.idibon.api.model.Util.JSON_BF;
+
 /**
  * A label (classification / type of data) inside a Task.
  */
@@ -94,11 +97,34 @@ public class Label {
     }
 
     /**
+     * Returns a {@link com.idibon.api.model.LabelBuilder} to modify the
+     * properties of this label.
+     *
+     * You must call {@link com.idibon.api.model.LabelBuilder#commit} to save
+     * any changes to this label back to the API.
+     *
+     * @return {@link com.idibon.api.model.LabelBuilder} modifying this label.
+     */
+    public LabelBuilder modify() throws IOException {
+        return new LabelBuilder(this);
+    }
+
+    /**
      * Deletes the label.
      */
     public void delete() throws IOException {
-        getTask().invalidate();
-        getTask().evict(this);
+        JsonObject body = JSON_BF.createObjectBuilder()
+            .add("label", getName()).build();
+
+        Either<IOException, JsonObject> result =
+            _task.getInterface().httpDelete(_task.getEndpoint(), body)
+            .getAs(JsonObject.class);
+
+        if (result.isLeft()) throw result.left;
+        if (!result.right.getBoolean("deleted"))
+            throw new IOException("Label was not deleted");
+
+        _task.commitLabelUpdate(this, null);
     }
 
     /**
@@ -150,6 +176,10 @@ public class Label {
      */
     public TuningRules.Rule.Regex createRule(Pattern phrase, double weight) {
         return new TuningRules.Rule.Regex(this, "/" + phrase.toString() + "/", weight);
+    }
+
+    @Override public String toString() {
+        return _task.getName() + "#" + _name;
     }
 
     @Override public boolean equals(Object other) {
