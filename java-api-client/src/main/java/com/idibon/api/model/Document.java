@@ -156,7 +156,7 @@ public class Document extends IdibonHash
      * Schedules this document for deletion, and returns a Future that will
      * complete after the document is deleted.
      */
-    public HttpFuture<JsonValue> deleteAsync() throws IOException {
+    public HttpFuture<JsonValue> deleteAsync() {
         return _httpIntf.httpDelete(getEndpoint(), EMPTY_JSON_OBJECT);
     }
 

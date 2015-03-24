@@ -17,14 +17,23 @@ import com.idibon.api.util.Either;
 public final class HttpFuture<Result extends JsonValue>
     implements Future<Either<IOException, Result>> {
 
+    /**
+     * See {@link java.util.concurrent.Future#isDone}
+     */
     public boolean isDone() {
         return _base.isDone();
     }
 
+    /**
+     * See {@link java.util.concurrent.Future#isCancelled}
+     */
     public boolean isCancelled() {
         return _base.isCancelled();
     }
 
+    /**
+     * See {@link java.util.concurrent.Future#cancel}
+     */
     public boolean cancel(boolean mayInterrupt) {
         return _base.cancel(mayInterrupt);
     }
@@ -46,10 +55,20 @@ public final class HttpFuture<Result extends JsonValue>
         }
     }
 
+    /**
+     * See {@link java.util.concurrent.Future#get()}
+     */
     public Either<IOException, Result> get() {
         return get(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * See {@link java.util.concurrent.Future#get(long, TimeUnit)}
+     *
+     * If an exception was thrown by the asynchronous HTTP request represented by
+     * this Future, the exception will be caught and returned in an
+     * {@link com.idibon.api.util.Either} left instance, rather than thrown.
+     */
     public Either<IOException, Result> get(long timeout, TimeUnit unit) {
         try {
             return Either.right(_base.get(timeout, unit));
@@ -76,6 +95,11 @@ public final class HttpFuture<Result extends JsonValue>
     /**
      * Converts a {@link java.util.concurrent.Future} that returns a JsonValue
      * or throws an Exception into an HttpFuture that returns an Either.
+     *
+     * @param base Underlying Future that will either throw an Exception or return
+     *        a JSON result value
+     * @return An {@link com.idibon.api.http.HttpFuture} wrapping base with an
+     *         {@link com.idibon.api.util.Either} return value.
      */
     public static <R extends JsonValue> HttpFuture<R> wrap(Future<R> base) {
         return new HttpFuture<>(base);
