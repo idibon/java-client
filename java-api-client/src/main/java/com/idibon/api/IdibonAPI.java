@@ -6,13 +6,12 @@ package com.idibon.api;
 import java.io.IOException;
 
 import java.util.Arrays;
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
 
 import javax.json.JsonValue;
 
 import com.idibon.api.model.*;
 import com.idibon.api.http.*;
+import com.idibon.api.util.Either;
 
 public class IdibonAPI {
 
@@ -56,25 +55,27 @@ public class IdibonAPI {
      *
      * @param futures List of operations to synchronize on completion.
      */
-    public void waitFor(Future<?>... futures) throws IOException {
+    public void waitFor(HttpFuture<?>... futures) throws IOException {
         waitFor(Arrays.asList(futures));
     }
 
-    public void waitFor(Iterable<Future<?>> futures) throws IOException {
-        Throwable first = null;
-        for (Future<?> f : futures) {
-            try {
-                f.get();
-            } catch (ExecutionException ex) {
-                if (first == null) first = ex.getCause();
-            } catch (InterruptedException ex) {
-                if (first == null) first = ex.getCause();
-            }
+    /**
+     * Wait for one or more asynchronous operations to complete.
+     *
+     * If an exception occurs on one of the pending operations, the method
+     * waits for other operations to complete then throws the exception that
+     * occurred.
+     *
+     * @param futures List of operations to wait for completion.
+     */
+    public void waitFor(Iterable<HttpFuture<?>> futures) throws IOException {
+        IOException err = null;
+        for (HttpFuture<?> f : futures) {
+            Either<IOException, ?> result = f.get();
+            if (result.isLeft() && err == null) err = result.left;
         }
 
-        if (first == null) return;
-        if (first instanceof IOException) throw (IOException)first;
-        throw new IOException("Exception waiting for results", first);
+        if (err != null) throw err;
     }
 
     /**

@@ -3,6 +3,7 @@
  */
 package com.idibon;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Arrays;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Map;
 import com.idibon.api.http.impl.JdkHttpInterface;
 import com.idibon.api.model.*;
 import com.idibon.api.IdibonAPI;
+import com.idibon.api.util.Either;
 
 import static com.idibon.api.util.Adapters.wrapCharSequences;
 
@@ -30,10 +32,12 @@ public class PredictContent
             wrapCharSequences(Arrays.asList(content));
 
         // Drop the prediction threshold to 0.6 to pick up more features
-        Iterable<DocumentPrediction> predictedResults =
+        Iterable<Either<IOException, DocumentPrediction>> predictedResults =
             task.classifications(streamDocuments).withSignificantFeatures(0.6);
 
-        for (DocumentPrediction p : predictedResults) {
+        for (Either<IOException, DocumentPrediction> pred : predictedResults) {
+            if (pred.isLeft()) throw pred.left;
+            DocumentPrediction p = pred.right;
             Map<Label, Double> confidence = p.getPredictedConfidences();
             Map<Label, List<String>> features = p.getSignificantFeatures();
             if (features == null)

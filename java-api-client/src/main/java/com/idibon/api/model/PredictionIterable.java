@@ -3,8 +3,6 @@
  */
 package com.idibon.api.model;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
 import java.util.NoSuchElementException;
 import java.util.LinkedList;
 import java.util.Iterator;
@@ -12,19 +10,23 @@ import java.io.IOException;
 
 import javax.json.*;
 
+import com.idibon.api.util.Either;
+import com.idibon.api.http.HttpFuture;
+
 import static com.idibon.api.model.Util.JSON_BF;
 
 /**
  * Generates predictions for one or more predictable items.
  */
-public class PredictionIterable<T extends Prediction> implements Iterable<T> {
+public class PredictionIterable<T extends Prediction>
+      implements Iterable<Either<IOException, T>> {
 
     /**
      * Default feature threshold. Returns moderate-strongly predictive features
      */
     public static final double DEFAULT_FEATURE_THRESHOLD = 0.7;
 
-    public Iterator<T> iterator() {
+    public Iterator<Either<IOException, T>> iterator() {
         return this.new Iter();
     }
 
@@ -88,7 +90,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
      * Uses a circular buffer internally (limited to DISPATCH_LIMIT items) to
      * store issued requests.
      */
-    private class Iter implements Iterator<T> {
+    private class Iter implements Iterator<Either<IOException, T>> {
         private Iter() {
             _itemIt = _items.iterator();
             _queue = new LinkedList<>();
@@ -99,26 +101,20 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
             return !_queue.isEmpty() || _itemIt.hasNext();
         }
 
-        public T next() {
+        public Either<IOException, T> next() {
             if (!hasNext()) throw new NoSuchElementException();
             Entry head = _queue.removeFirst();
 
-            JsonArray result = null;
+            Either<IOException, JsonArray> result =
+                head.future.getAs(JsonArray.class);
 
-            try {
-                result = (JsonArray)head.future.get();
-            } catch (ExecutionException ex) {
-                throw new IterationException(_target.getEndpoint(),
-                                             ex.getCause());
-            } catch (InterruptedException | ClassCastException ex) {
-                throw new IterationException(_target.getEndpoint(), ex);
-            }
+            if (result.isLeft()) return Either.left(result.left);
 
             try {
                 T prediction = _clazz.newInstance();
-                prediction.init((JsonArray)result, head.request, _target);
+                prediction.init(result.right, head.request, _target);
                 advance(head);
-                return prediction;
+                return Either.right(prediction);
             } catch (InstantiationException | IllegalAccessException _) {
                 throw new Error("Impossible");
             }
@@ -132,12 +128,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
             while (_queue.size() < DISPATCH_LIMIT && _itemIt.hasNext()) {
                 Entry issue = (last != null) ? last : new Entry();
                 issue.request = _itemIt.next();
-                try {
-                    issue.future = makePrediction(issue.request);
-                } catch (IOException ex) {
-                    throw new IterationException("Unable to predict " +
-                                                 issue.request, ex);
-                }
+                issue.future = makePrediction(issue.request);
                 _queue.addLast(issue);
                 last = null;
             }
@@ -149,8 +140,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
          * @param content The item to predict
          * @return A promise with the prediction result
          */
-        private Future<JsonValue> makePrediction(DocumentContent content)
-              throws IOException {
+        private HttpFuture<JsonValue> makePrediction(DocumentContent content) {
             JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
             JsonObject body = null;
 
@@ -172,10 +162,14 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
 
             if (body == null) {
                 // fallback to ephemeral predictions
-                bldr.add("content", content.getContent());
-                JsonObject metadata = content.getMetadata();
-                if (metadata != null) bldr.add("metadata", metadata);
-                body = bldr.build();
+                try {
+                    bldr.add("content", content.getContent());
+                    JsonObject metadata = content.getMetadata();
+                    if (metadata != null) bldr.add("metadata", metadata);
+                    body = bldr.build();
+                } catch (IOException ex) {
+                    return HttpFuture.wrap(HttpIssueError.wrap(ex));
+                }
             }
 
             return _target.getInterface().httpGet(_target.getEndpoint(), body);
@@ -186,7 +180,7 @@ public class PredictionIterable<T extends Prediction> implements Iterable<T> {
     }
 
     private static class Entry {
-        Future<JsonValue> future;
+        HttpFuture<JsonValue> future;
         DocumentContent request;
     }
 }

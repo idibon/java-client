@@ -10,6 +10,7 @@ import com.idibon.api.http.HttpException;
 import com.idibon.api.http.impl.JdkHttpInterface;
 import com.idibon.api.model.*;
 import com.idibon.api.model.Collection;
+import com.idibon.api.util.Either;
 
 import javax.json.*;
 
@@ -18,6 +19,7 @@ import org.junit.*;
 import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
 import static com.idibon.api.util.Adapters.buildAnnotations;
+import static com.idibon.api.util.Adapters.flattenRight;
 import static com.idibon.api.model.DocumentSearcher.ReturnData.*;
 import static com.idibon.api.model.DocumentAnnotationQuery.forTasks;
 
@@ -49,8 +51,9 @@ public class IdibonAPI_IT {
         // tests the non-streaming, name-only mode
         Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
-        for (Document d : collection.documents()) {
-            assertThat(d.isLoaded(), is(false));
+        for (Either<IOException, Document> d : collection.documents()) {
+            if (d.isLeft()) throw d.left;
+            assertThat(d.right.isLoaded(), is(false));
             count++;
         }
         assertThat(count, is(75113));
@@ -59,9 +62,9 @@ public class IdibonAPI_IT {
     @Test public void canReadDocumentContent() throws Exception {
         Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
-        Iterator<Document> it = collection.documents()
+        Iterator<Either<IOException, Document>> it = collection.documents()
             .returning(DocumentContent).iterator();
-        JsonObject first = it.next().getJson();
+        JsonObject first = it.next().right.getJson();
 
         assertThat(first.getString("content", null), is(not(nullValue())));
     }
@@ -69,8 +72,9 @@ public class IdibonAPI_IT {
     @Test public void canStreamDocuments() throws Exception {
         Collection collection = _apiClient.collection("DemoOfTesla");
         int count = 0;
-        for (Document d : collection.documents().returning(AllAnnotations)) {
-            JsonValue anns = d.getJson().get("annotations");
+        for (Either<IOException, Document> d : collection.documents().returning(AllAnnotations)) {
+            if (d.isLeft()) throw d.left;
+            JsonValue anns = d.right.getJson().get("annotations");
             assertThat(anns, either(is(instanceOf(JsonArray.class))).or(is(nullValue())));
             count++;
             if (count >= 3000) break;
@@ -80,9 +84,9 @@ public class IdibonAPI_IT {
 
     @Test public void canReadAnnotations() throws Exception {
         Collection collection = _apiClient.collection("general_sentiment_5pt_scale");
-        for (Document doc : collection.documents().returning(TaskAnnotations)
+        for (Either<IOException, Document> doc : collection.documents().returning(TaskAnnotations)
                  .annotated(forTasks("NP_Chunking")).first(5)) {
-            for (Annotation ann : doc.getAnnotations()) {
+            for (Annotation ann : doc.right.getAnnotations()) {
                 assertThat(ann, is(instanceOf(Annotation.SpanAssignment.class)));
                 Annotation.SpanAssignment assign = (Annotation.SpanAssignment)ann;
                 assertThat(assign.label.getName(), is("NP-Chunk"));
@@ -94,8 +98,10 @@ public class IdibonAPI_IT {
         Collection collection = _apiClient.collection("DemoOfTesla");
         for (int limit = 1; limit <= 5; limit++) {
             List<Document> result = new ArrayList<Document>();
-            for (Document d : collection.documents().first(limit))
-                result.add(d);
+            for (Either<IOException, Document> d : collection.documents().first(limit)) {
+                if (d.isLeft()) throw d.left;
+                result.add(d.right);
+            }
             assertThat(result, hasSize(limit));
         }
     }
@@ -105,17 +111,20 @@ public class IdibonAPI_IT {
         List<String> expectedNames = new ArrayList<String>();
         Set<String> uniqueNames = new HashSet<String>();
 
-        for (Document d : collection.documents().first(5)) {
-            expectedNames.add(d.getName());
-            uniqueNames.add(d.getName());
+        for (Either<IOException, Document> d : collection.documents().first(5)) {
+            if (d.isLeft()) throw d.left;
+            expectedNames.add(d.right.getName());
+            uniqueNames.add(d.right.getName());
         }
 
         assertThat(uniqueNames, hasSize(5));
 
         List<String> names = new ArrayList<String>();
         for (int i = 0; i < 5; i++) {
-            for (Document d : collection.documents().first().ignoring(i))
-                names.add(d.getName());
+            for (Either<IOException, Document> d : collection.documents().first().ignoring(i)) {
+                if (d.isLeft()) throw d.left;
+                names.add(d.right.getName());
+            }
         }
 
         assertThat(names, equalTo(expectedNames));
@@ -125,14 +134,17 @@ public class IdibonAPI_IT {
         Collection c = _apiClient.collection("general_sentiment_5pt_scale");
         Task sentiment = c.task("Sentiment");
         List<String> predicted = new ArrayList<String>();
-        for (DocumentPrediction p : sentiment
-                 .classifications(c.documents().first(100))) {
-            predicted.add(p.getRequestedAs(Document.class).getName());
-            assertThat(p.getPredictedConfidences().size(), is(5));
+        for (Either<IOException, DocumentPrediction> p : sentiment
+                 .classifications(flattenRight(c.documents().first(100)))) {
+            if (p.isLeft()) throw p.left;
+            predicted.add(p.right.getRequestedAs(Document.class).getName());
+            assertThat(p.right.getPredictedConfidences().size(), is(5));
         }
         List<String> expected = new ArrayList<String>();
-        for (Document d : c.documents().first(100))
-            expected.add(d.getName());
+        for (Either<IOException, Document> d : c.documents().first(100)) {
+            if (d.isLeft()) throw d.left;
+            expected.add(d.right.getName());
+        }
 
         assertThat(predicted, is(expected));
     }
@@ -141,14 +153,17 @@ public class IdibonAPI_IT {
         Collection c = _apiClient.collection("general_sentiment_5pt_scale");
         Task sentiment = c.task("Sentiment");
         PredictionIterable<DocumentPrediction> predictions = sentiment
-            .classifications(c.documents().first());
+            .classifications(flattenRight(c.documents().first()));
 
         // first, try without specifying a feature threshold.
-        for (DocumentPrediction p : predictions)
-            assertThat(p.getSignificantFeatures(), is(nullValue()));
+        for (Either<IOException, DocumentPrediction> p : predictions) {
+            if (p.isLeft()) throw p.left;
+            assertThat(p.right.getSignificantFeatures(), is(nullValue()));
+        }
 
-        for (DocumentPrediction p : predictions.withSignificantFeatures(0.5)) {
-            Map<Label, List<String>> features = p.getSignificantFeatures();
+        for (Either<IOException, DocumentPrediction> p : predictions.withSignificantFeatures(0.5)) {
+            if (p.isLeft()) throw p.left;
+            Map<Label, List<String>> features = p.right.getSignificantFeatures();
             assertThat(features, is(not(nullValue())));
             assertThat(features.size(), is(not(0)));
         }

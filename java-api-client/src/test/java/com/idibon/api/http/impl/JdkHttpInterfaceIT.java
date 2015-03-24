@@ -5,12 +5,11 @@ package com.idibon.api.http.impl;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
 
 import org.junit.*;
 import javax.json.*;
 
+import com.idibon.api.util.Either;
 import com.idibon.api.http.HttpException;
 
 import static org.junit.Assert.*;
@@ -35,28 +34,24 @@ public class JdkHttpInterfaceIT {
     public void withoutAuthentication() throws Throwable {
         JdkHttpInterface intf = new JdkHttpInterface()
             .forServer(_apiTarget);
-        try {
-            intf.httpGet("/").get();
-        } catch (ExecutionException ex) {
-            throw ex.getCause();
-        }
+
+        Either<IOException, JsonValue> v = intf.httpGet("/").get();
+        assertTrue(v.isLeft());
+        throw v.left;
     }
 
     @Test public void returnJsonErrorBody() throws Throwable {
         JdkHttpInterface intf = new JdkHttpInterface()
             .forServer(_apiTarget)
             .withApiKey("NOT-A-KEY");
-        try {
-            try {
-                intf.httpGet("/").get();
-            } catch (ExecutionException ex) {
-                throw ex.getCause();
-            }
-        } catch (HttpException.Unauthorized ex) {
-            JsonObject jsonInfo = ex.getJsonErrorInfo();
-            String msg = jsonInfo.getString("errors");
-            assertThat(msg, is("improperly formatted API key"));
-        }
+
+        Either<IOException, JsonValue> v = intf.httpGet("/").get();
+        assertTrue(v.isLeft());
+        assertThat(v.left, is(instanceOf(HttpException.Unauthorized.class)));
+        HttpException.Unauthorized ex = (HttpException.Unauthorized)v.left;
+        JsonObject jsonInfo = ex.getJsonErrorInfo();
+        String msg = jsonInfo.getString("errors");
+        assertThat(msg, is("improperly formatted API key"));
     }
 
     @Test(expected = HttpException.NotFound.class)
@@ -64,11 +59,11 @@ public class JdkHttpInterfaceIT {
         JdkHttpInterface intf = new JdkHttpInterface()
             .forServer(_apiTarget)
             .withApiKey(_apiKey);
-        try {
+
+        Either<IOException, JsonValue> v =
             intf.httpGet("/this_collection_does_not_exist/*").get();
-        } catch (ExecutionException ex) {
-            throw ex.getCause();
-        }
+        assertTrue(v.isLeft());
+        throw v.left;
     }
 
     @Test public void hostnameNotInCertificate() throws Throwable {
@@ -77,20 +72,15 @@ public class JdkHttpInterfaceIT {
             .forServer("https://" + addr)
             .withApiKey(_apiKey);
 
-        try {
-            try {
-                intf.httpGet("/").get();
-            } catch (ExecutionException ex) {
-                throw ex.getCause();
-            }
-        } catch (javax.net.ssl.SSLHandshakeException ex) {
-            Throwable cause = ex.getCause();
-            assertThat(cause, is(instanceOf(java.security.cert.CertificateException.class)));
-            String reason = cause.getMessage();
-            assertThat(reason, startsWith("No subject alternative names"));
-        }
+        Either<IOException, JsonValue> v = intf.httpGet("/").get();
+        assertTrue(v.isLeft());
+        assertThat(v.left, is(instanceOf(javax.net.ssl.SSLHandshakeException.class)));
+        Throwable cause = v.left.getCause();
+        assertThat(cause, is(instanceOf(java.security.cert.CertificateException.class)));
+        String reason = cause.getMessage();
+        assertThat(reason, startsWith("No subject alternative names"));
 
-        intf.withoutHostnameValidation().httpGet("/");
+        assertTrue(intf.withoutHostnameValidation().httpGet("/").get().isRight());
     }
 
     @Test public void handleChunkedInput() throws Exception {
