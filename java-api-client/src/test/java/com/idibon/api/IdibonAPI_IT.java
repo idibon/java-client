@@ -234,29 +234,85 @@ public class IdibonAPI_IT {
         TuningRules.Rule rule = label.createRule("hiybbprqag", 0.75);
         task.addRules(rule);
         try {
-            task.invalidate();
             assertThat(label.getRules(), hasSize(1));
             assertThat(label.getRules().get(0).phrase, is(rule.phrase));
             assertThat(label.getRules().get(0).weight, is(rule.weight));
             TuningRules.Rule update = label.createRule(rule.phrase, 0.95);
             task.addRules(update);
-            task.invalidate();
             assertThat(label.getRules(), hasSize(1));
             assertThat(label.getRules().get(0).phrase, is(update.phrase));
             assertThat(label.getRules().get(0).weight, is(update.weight));
             // should be a no-op, since the weights don't match
             task.deleteRules(rule);
-            task.invalidate();
             assertThat(label.getRules(), hasSize(1));
             // update which rule will be deleted in the finally block
             rule = update;
         } finally {
             task.deleteRules(rule);
         }
-        task.invalidate();
         /* move this outside the try, so that it doesn't clobber an
          * earlier exception */
         assertThat(label.getRules(), is(empty()));
+    }
+
+    @Test public void canAddAndRemoveSubtasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task task = c.task("Relevance");
+        Label label = task.label("Relevant");
+        Task subtask = c.task("Sentiment");
+        task.addSubtaskTriggers(label, subtask);
+        try {
+            Map<Label, Set<? extends Task>> ontology = task.getSubtasks();
+            assertThat(ontology, hasKey(label));
+            assertThat(ontology.get(label), contains(subtask));
+        } finally {
+            task.deleteSubtaskTriggers(label, subtask);
+        }
+        assertThat(task.getSubtasks().keySet(), is(empty()));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test public void canAddAndRemoveLabels() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task task = c.task("Relevance");
+        String desc = "This label is garbage";
+        Label garbage = task.createLabel("Garbage")
+            .setDescription(desc).commit();
+
+        try {
+            assertThat(task.label("Garbage"), is(sameInstance(garbage)));
+            assertThat((List<Label>)(Object)task.getLabels(), hasItem(garbage));
+            assertThat(garbage.getDescription(), is(desc));
+        } finally {
+            garbage.delete();
+        }
+
+        assertThat((List<Label>)(Object)task.getLabels(), not(hasItem(garbage)));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test public void automaticallyRenamesRulesAndSubtasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task task = c.task("Relevance");
+        Label garbage = task.createLabel("Garbage").commit();
+
+        try {
+            Label backup = garbage;
+            task.addRules(garbage.createRule("hiybbprqag", 0.75));
+            task.addSubtaskTriggers(garbage, c.task("Sentiment"));
+            garbage = garbage.modify().setName("GarbageGarbage").commit();
+            assertThat(garbage.getName(), is("GarbageGarbage"));
+            assertThat(task.getSubtasks(), hasKey(garbage));
+            assertThat(task.getSubtasks(), not(hasKey(backup)));
+            assertThat((Set<Task>)(Object)task.getSubtasks().get(garbage),
+                       hasItem(c.task("Sentiment")));
+            assertThat(garbage.getRules(), hasSize(1));
+            assertThat(garbage.getRules().get(0).phrase, is("hiybbprqag"));
+        } finally {
+            garbage.delete();
+        }
+
+        assertThat(task.getSubtasks().keySet(), is(empty()));
     }
 
     @AfterClass public static void shutdown() {

@@ -4,6 +4,7 @@
 package com.idibon.api;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 
 import java.util.Arrays;
 
@@ -12,6 +13,7 @@ import javax.json.JsonValue;
 import com.idibon.api.model.*;
 import com.idibon.api.http.*;
 import com.idibon.api.util.Either;
+import com.idibon.api.util.Memoize;
 
 public class IdibonAPI {
 
@@ -45,7 +47,7 @@ public class IdibonAPI {
      */
     public Collection collection(String name) {
         mustHaveInterface();
-        return Collection.instance(_httpIntf, name);
+        return _collections.memoize(createCollection(name));
     }
 
     /**
@@ -79,6 +81,21 @@ public class IdibonAPI {
     }
 
     /**
+     * Uses reflection and security over-rides to instantiate a new Collection
+     * from outside the package.
+     */
+    private Collection createCollection(String name) {
+        try {
+            Method collInstance = Collection.class.getDeclaredMethod(
+                "instance", HttpInterface.class, String.class);
+            collInstance.setAccessible(true);
+            return (Collection)collInstance.invoke(null, _httpIntf, name);
+        } catch (Exception _) {
+            throw new Error(""); // can't happen
+        }
+    }
+
+    /**
      * Verifies that an interface has been assigned before executing any
      * operations that might communicate over HTTP.
      */
@@ -87,6 +104,10 @@ public class IdibonAPI {
             throw new IllegalStateException("Interface is not configured");
     }
 
-    /// HTTP Interface used for all server communication
+    // HTTP Interface used for all server communication
     private HttpInterface _httpIntf;
+
+    // Memoization for Collection instances
+    private final Memoize<Collection> _collections =
+        Memoize.cacheReferences(Collection.class);
 }

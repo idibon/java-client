@@ -8,6 +8,7 @@ import java.util.*;
 
 import com.idibon.api.http.*;
 import com.idibon.api.util.Either;
+import com.idibon.api.util.Memoize;
 import com.idibon.api.model.Collection;
 import javax.json.*;
 
@@ -21,23 +22,88 @@ import static com.idibon.api.model.Util.JSON_BF;
 public class Collection extends IdibonHash {
 
     /**
+     * Keys that may appear in the raw JSON hash.
+     */
+    public enum Keys {
+        /**
+         * Arbitrary configuration data (<tt>JsonObject</tt>).
+         */
+        config,
+        /**
+         * Date the collection was created (<tt>ISO-8601 String</tt>).
+         */
+        created_at,
+        /**
+         * User-friendly description of the collection (<tt>String</tt>).
+         */
+        description,
+        /**
+         * Reserved (<tt>Boolean</tt>).
+         */
+        is_active,
+        /**
+         * Reserved (<tt>Boolean</tt>)
+         */
+        is_public,
+        /**
+         * Name of the collection (<tt>String</tt>).
+         */
+        name,
+        /**
+         * Reserved (<tt>JsonArray</tt>).
+         */
+        streams,
+        /**
+         * UUID of the subscriber who created the collection
+         * (<tt>UUID String</tt>).
+         */
+        subscriber_id,
+        /**
+         * All of the tasks in this collection (<tt>JsonArray</tt>).
+         */
+        tasks,
+        /**
+         * Date of most recent change to the collection or any task in it
+         * (<tt>ISO-8601 String</tt>).
+         */
+        touched_at,
+        /**
+         * Date the collection was most last changed (<tt>ISO-8601 String</tt>).
+         */
+        updated_at,
+        /**
+         * UUID of the collection (<tt>UUID String</tt>).
+         */
+        uuid;
+    }
+
+    /**
      * Returns the raw JSON data for this Collection
      */
     @Override public JsonObject getJson() throws IOException {
-        JsonObject collection = super.getJson(GET_FULL_DATA)
-            .getJsonObject("collection");
+        return super.getJson(null).getJsonObject("collection");
+    }
 
-        if (_cachedTasks == null) {
-            // cache Task instances for every task in this collection
-            Map<String, JsonObject> m = new LinkedHashMap<>();
-            JsonArray tasks = collection.getJsonArray("tasks");
-            if (tasks != null) {
-                for (JsonObject t : tasks.getValuesAs(JsonObject.class))
-                    m.put(t.getString("name"), t);
-            }
-            _cachedTasks = m;
-        }
-        return collection;
+    /**
+     * Returns the value in the JSON hash for the specified key.
+     *
+     * @param key The value in the JSON hash to return
+     * @return The value in the hash at key
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends JsonValue> T get(Keys key) throws IOException {
+        return (T)getJson().get(key.name());
+    }
+
+    /**
+     * Returns the tasks defined for this collection.
+     */
+    public List<? extends Task> getTasks() throws IOException {
+        JsonArray taskArray = get(Keys.tasks);
+        List<Task> tasks = new ArrayList<>(taskArray.size());
+        for (JsonObject taskJson : taskArray.getValuesAs(JsonObject.class))
+            tasks.add(task(taskJson.getString(Task.Keys.name.name())));
+        return tasks;
     }
 
     /**
@@ -126,28 +192,7 @@ public class Collection extends IdibonHash {
      * Returns a Task instance for the named task.
      */
     public Task task(String name) {
-        /* check if the task is already cached. store the _cachedTasks instance
-         * var locally, in case a different thread invalidates the cached data
-         * (nulling _cachedTasks) while this method is executing. */
-        Map<String, JsonObject> cache = _cachedTasks;
-        if (cache != null) {
-            JsonObject hit = cache.get(name);
-            if (hit != null) {
-                return Task.instance(this,
-                    JSON_BF.createObjectBuilder().add("task", hit).build());
-            }
-        }
-        return Task.instance(this, name);
-    }
-
-    /**
-     * Invalidate cached data.
-     */
-    @SuppressWarnings("unchecked")
-    @Override public Collection invalidate() {
-        super.invalidate();
-        _cachedTasks = null;
-        return this;
+        return _tasks.memoize(Task.instance(this, name));
     }
 
     @Override public boolean equals(Object other) {
@@ -170,7 +215,7 @@ public class Collection extends IdibonHash {
      * @param httpIntf The HTTP interface to use to access the Collection
      * @param name The name of the collection
      */
-    public static Collection instance(HttpInterface httpIntf, String name) {
+    static Collection instance(HttpInterface httpIntf, String name) {
         return new Collection(httpIntf, name);
     }
 
@@ -179,13 +224,9 @@ public class Collection extends IdibonHash {
         _name = name;
     }
 
-    // cache of task data for quick lookup
-    private volatile Map<String, JsonObject> _cachedTasks;
-
     // The name of the collection (un-escaped)
     private final String _name;
 
-    // Query used to return full task and label data from getJson()
-    private static final JsonObject GET_FULL_DATA =
-        JSON_BF.createObjectBuilder().add("full", true).build();
+    // Memoization for tasks
+    private final Memoize<Task> _tasks = Memoize.cacheReferences(Task.class);
 }
