@@ -13,6 +13,7 @@ import com.idibon.api.model.Collection;
 import javax.json.*;
 
 import static com.idibon.api.model.Util.JSON_BF;
+import static com.idibon.api.model.OntologyNode.CONFIG_SUBTASK_KEY;
 
 /**
  * The Collection is the top-most item in an analysis project.
@@ -195,6 +196,22 @@ public class Collection extends IdibonHash {
         return _tasks.memoize(Task.instance(this, name));
     }
 
+    /**
+     * Creates a {@link com.idibon.api.model.TaskBuilder} instance to define
+     * a new {@link com.idibon.api.model.Task} in this Collection.
+     *
+     * You must call {@link com.idibon.api.model.TaskBuilder#commit} on the
+     * returned object to save the new task to the API.
+     *
+     * @param scope The type of task to create
+     * @param name The new name of the new task
+     * @return A {@link com.idibon.api.model.TaskBuilder} TaskBuilder to
+     *         configure additional properties of the new label.
+     */
+    public TaskBuilder createTask(Task.Scope scope, String name) {
+        return new TaskBuilder(this, scope).setName(name);
+    }
+
     @Override public boolean equals(Object other) {
         if (other == this) return true;
         if (!(other instanceof Collection)) return false;
@@ -207,6 +224,110 @@ public class Collection extends IdibonHash {
 
     @Override public int hashCode() {
         return getEndpoint().hashCode();
+    }
+
+    /**
+     * Updates stale references to a modified or deleted task across all
+     * subtasks.
+     */
+    synchronized void commitTaskUpdate(Task task, String newName)
+          throws IOException {
+
+        boolean dirty = false;
+        final String oldName = task.getName();
+
+        JsonArray rawTasks = get(Keys.tasks);
+        try {
+            for (JsonObject raw : rawTasks.getValuesAs(JsonObject.class)) {
+                String rawName = raw.getString(Task.Keys.name.name());
+                /* the old task doesn't exist, so don't try to update it.
+                 * this check could be removed if there were either A) a
+                 * guarantee that no cycles exist in the ontology graph, or
+                 * B) the cached collection JSON is invalidated before
+                 * patching it. */
+                if (rawName.equals(oldName)) continue;
+
+                /* check if the renamed / deleted task was triggered by
+                 * any of the labels in the 'raw' task. */
+                JsonObject config = raw.getJsonObject(Task.Keys.config.name());
+                if (config == null) continue;
+                JsonObject subtasks = config.getJsonObject(CONFIG_SUBTASK_KEY);
+                if (!isTriggeredSubtask(subtasks, oldName)) continue;
+
+                /* clone the subtask hash, but replace all mentions of oldName
+                 * in the arrays of triggered tasks with newName */
+
+                Task toUpdate = task(rawName);
+                JsonObjectBuilder clonedHash = JSON_BF.createObjectBuilder();
+
+                // loop over all labels
+                for (Map.Entry<String, JsonValue> entry : subtasks.entrySet()) {
+                    if (!(entry.getValue() instanceof JsonArray)) continue;
+                    JsonArray arr = (JsonArray)entry.getValue();
+                    JsonArrayBuilder bldr = JSON_BF.createArrayBuilder();
+                    // loop over all triggered tasks
+                    for (JsonString json : arr.getValuesAs(JsonString.class)) {
+                        /* if the triggered task matches the replaced task name,
+                         * either drop it (for deleted tasks) or use newName */
+                        if (json.getString().equals(oldName)) {
+                            if (newName != null) bldr.add(newName);
+                        } else {
+                            bldr.add(json);
+                        }
+                    }
+                    /* if the label still triggers at least one subtask, add it
+                     * to the hash; otherwise, skip it. */
+                    JsonArray clonedArray = bldr.build();
+                    if (!clonedArray.isEmpty())
+                        clonedHash.add(entry.getKey(), clonedArray);
+                }
+
+                JsonObject body = JSON_BF.createObjectBuilder()
+                  .add("task", JSON_BF.createObjectBuilder()
+                    .add(Task.Keys.config.name(), JSON_BF.createObjectBuilder()
+                      .add(CONFIG_SUBTASK_KEY, clonedHash.build())
+                    .build()).build()).build();
+
+                Either<IOException, JsonObject> result =
+                    _httpIntf.httpPost(toUpdate.getEndpoint(), body)
+                    .getAs(JsonObject.class);
+
+                if (result.isLeft()) throw result.left;
+
+                /* since at least one task has been updated on the API,
+                 * invalidate the cached API response in this Collection */
+                dirty = true;
+                toUpdate.invalidate().preload(result.right);
+            }
+        } finally {
+            if (dirty) invalidate();
+        }
+    }
+
+    /**
+     * Checks if a named task is triggered by any label in the subtask
+     * ontology hash for a task.
+     *
+     * @param subtasks The raw JSON hash of label names to array of task names
+     * @param name The name of a task to search for
+     * @return true if name is found, false if not.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean isTriggeredSubtask(JsonObject subtasks, String name) {
+        if (subtasks == null) return false;
+
+        // loop over all labels that trigger subtasks
+        for (Map.Entry<String, JsonValue> entry : subtasks.entrySet()) {
+            if (!(entry.getValue() instanceof JsonArray)) continue;
+            JsonArray triggered = (JsonArray)entry.getValue();
+            // and loop over all triggeed subtasks...
+            for (JsonString json : triggered.getValuesAs(JsonString.class)) {
+                if (json.getString().equals(name)) return true;
+            }
+        }
+
+        // no matches, return false
+        return false;
     }
 
     /**

@@ -23,6 +23,8 @@ public class LabelBuilder {
      * @return this
      */
     public LabelBuilder setName(String name) {
+        if (name == null) throw new NullPointerException("name");
+        if (name.isEmpty()) throw new IllegalArgumentException("name");
         _name = name;
         return this;
     }
@@ -35,6 +37,7 @@ public class LabelBuilder {
      * @return this
      */
     public LabelBuilder setDescription(String description) {
+        if (description == null) throw new NullPointerException("description");
         _description = description;
         return this;
     }
@@ -52,19 +55,9 @@ public class LabelBuilder {
         if (_name != null && _name.isEmpty())
             throw new IllegalArgumentException("Name must be non-empty");
 
-        JsonObjectBuilder json = JSON_BF.createObjectBuilder();
-        if (_existingUuid != null)
-            json.add(Label.Keys.uuid.name(), _existingUuid.toString());
-        if (_name != null)
-            json.add(Label.Keys.name.name(), _name);
-        if (_description != null)
-            json.add(Label.Keys.description.name(), _description);
-
-        JsonObject label = json.build();
-
         JsonObject task = JSON_BF.createObjectBuilder()
           .add(Task.Keys.labels.name(), JSON_BF.createArrayBuilder()
-             .add(label).build()).build();
+            .add(toJson()).build()).build();
 
         Either<IOException, JsonValue> result =
             _task.getInterface().httpPost(_task.getEndpoint(), task).get();
@@ -76,12 +69,41 @@ public class LabelBuilder {
         return _task.label(newName);
     }
 
+    /**
+     * Builds the JSON payload of label details.
+     */
+    JsonObject toJson() {
+        JsonObjectBuilder json = JSON_BF.createObjectBuilder();
+        if (_existingUuid != null)
+            json.add(Label.Keys.uuid.name(), _existingUuid.toString());
+        if (_name != null)
+            json.add(Label.Keys.name.name(), _name);
+        if (_description != null)
+            json.add(Label.Keys.description.name(), _description);
+        return json.build();
+    }
+
+    /**
+     * Constructor when new labels are being created, either by a call to
+     * {@link com.idibon.api.model.Task#createLabel} or
+     * {@link com.idibon.api.model.TaskBuilder#addLabel}.
+     *
+     * @param task The task where the new label will be created.
+     */
     LabelBuilder(Task task) {
         _task = task;
         _existingLabel = null;
         _existingUuid = null;
+        // The API requires new tasks to have at least an empty description
+        _description = "";
     }
 
+    /**
+     * Constructor when existing labels are modified.
+     *
+     * @param existing The label that will be modified. The label must be
+     *        committed to the API and have an API-assigned UUID.
+     */
     LabelBuilder(Label existing) throws IOException {
         _task = existing.getTask();
         _existingLabel = existing;

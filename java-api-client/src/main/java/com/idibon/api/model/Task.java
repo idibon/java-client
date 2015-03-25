@@ -215,6 +215,37 @@ public class Task extends IdibonHash {
     }
 
     /**
+     * Creates a {@link com.idibon.api.model.TaskBuilder} instance to modify
+     * properties of this {@link com.idibon.api.model.Task}.
+     *
+     * You must call {@link com.idibon.api.model.TaskBuilder#commit} on the
+     * returned object to save the modifications to the API.
+     *
+     * @return {@link com.idibon.api.model.TaskBuilder} modifying this Task.
+     */
+    public TaskBuilder modify() {
+        return new TaskBuilder(this);
+    }
+
+    /**
+     * Deletes this task, and removes all references to it from the ontology.
+     */
+    public void delete() throws IOException {
+        JsonObject body = JSON_BF.createObjectBuilder()
+            .add("task", true).build();
+
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpDelete(getEndpoint(), body).getAs(JsonObject.class);
+
+        if (result.isLeft()) throw result.left;
+        if (!result.right.getBoolean("deleted"))
+            throw new IOException ("Task was not deleted");
+
+        // propagate the delete to all parent task ontologies
+        _parent.commitTaskUpdate(this, null);
+    }
+
+    /**
      * Creates a {@link com.idibon.api.model.LabelBuilder} instance to define
      * a new {@link com.idibon.api.model.Label} for this Task.
      *

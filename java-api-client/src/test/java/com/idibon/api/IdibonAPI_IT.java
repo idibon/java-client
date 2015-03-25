@@ -315,6 +315,48 @@ public class IdibonAPI_IT {
         assertThat(task.getSubtasks().keySet(), is(empty()));
     }
 
+    @Test public void canAddAndRemoveTasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task snowman = c.createTask(Task.Scope.document, "Hi ☃")
+            .setDescription("It's U+2603")
+            .addLabel("Snowman")
+            .addLabel("Frosty")
+            .disallowTraining()
+            .commit();
+        try {
+            c.invalidate();
+            assertThat(c.getAllTasks(), hasItem(snowman));
+        } finally {
+            snowman.delete();
+        }
+        c.invalidate();
+        assertThat(c.getAllTasks(), not(hasItem(snowman)));
+    }
+
+    @Test public void automaticallyRenamesSubtasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task parent = c.createTask(Task.Scope.document, "Parent Task")
+            .addLabel("Trigger").commit();
+        Label trigger = parent.label("Trigger");
+
+        try {
+            Task child = c.createTask(Task.Scope.document, "Child task").commit();
+            try {
+                parent.addSubtaskTriggers(trigger, child);
+                assertThat(trigger.getSubtasks(), hasItem(child));
+                Task sibling = child;
+                child = child.modify().setName("Sibling").commit();
+                assertThat(child.getName(), is("Sibling"));
+                assertThat(trigger.getSubtasks(), not(hasItem(sibling)));
+                assertThat(trigger.getSubtasks(), hasItem(child));
+            } finally {
+                child.delete();
+            }
+        } finally {
+            parent.delete();
+        }
+    }
+
     @AfterClass public static void shutdown() {
         _apiClient.shutdown(0);
     }
