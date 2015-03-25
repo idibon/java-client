@@ -271,6 +271,7 @@ public class IdibonAPI_IT {
         assertThat(task.getSubtasks().keySet(), is(empty()));
     }
 
+    @SuppressWarnings("unchecked")
     @Test public void canAddAndRemoveLabels() throws Exception {
         Collection c = _apiClient.collection("zest_zest");
         Task task = c.task("Relevance");
@@ -289,6 +290,7 @@ public class IdibonAPI_IT {
         assertThat((List<Label>)(Object)task.getLabels(), not(hasItem(garbage)));
     }
 
+    @SuppressWarnings("unchecked")
     @Test public void automaticallyRenamesRulesAndSubtasks() throws Exception {
         Collection c = _apiClient.collection("zest_zest");
         Task task = c.task("Relevance");

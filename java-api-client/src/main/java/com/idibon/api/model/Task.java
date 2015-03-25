@@ -356,10 +356,14 @@ public class Task extends IdibonHash {
      *         the current node. false if not.
      */
     public boolean isDescendent(Task check) throws IOException {
+        // keep track of what has already been tested, to avoid infinite loops
         Set<Task> tested = new HashSet<>();
         Deque<Task> toTest = new LinkedList<Task>();
         toTest.add(this);
 
+        /* this is a recursive breadth-first search over all of the
+         * subtasks defined for this task (and the descendents of those
+         * subtasks) to determine if 'check' exists anywhere in the tree. */
         while (!toTest.isEmpty()) {
             Task head = toTest.removeFirst();
             tested.add(head);
@@ -402,17 +406,13 @@ public class Task extends IdibonHash {
           throws IOException {
         OntologyNode node = getCachedOntologyNode().clone();
         Set<Task> triggered = node.getOrDefault(trigger);
-        boolean dirty = false;
 
         for (Task t : tasks) {
             if (t.isDescendent(this))
                 throw new IllegalArgumentException("Cyclic Ontology");
 
-            if (!triggered.contains(t)) dirty = true;
             triggered.add(t);
         }
-
-        if (!dirty) return;  // no changes needed, don't upload
 
         JsonObject task = JSON_BF.createObjectBuilder()
             .add("task", JSON_BF.createObjectBuilder()
@@ -441,17 +441,10 @@ public class Task extends IdibonHash {
         Set<Task> triggered = node.get(trigger);
         if (triggered == null) return;
 
-        boolean dirty = false;
-        for (Task t : tasks) {
-            if (triggered.contains(t)) {
-                dirty = true;
-                triggered.remove(t);
-            }
-        }
+        for (Task t : tasks) triggered.remove(t);
 
         if (triggered.isEmpty()) node.remove(trigger);
 
-        if (!dirty) return;
         JsonObject task = JSON_BF.createObjectBuilder()
             .add("task", JSON_BF.createObjectBuilder()
               .add("config", JSON_BF.createObjectBuilder()
