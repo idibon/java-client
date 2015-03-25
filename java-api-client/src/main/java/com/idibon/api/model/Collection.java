@@ -97,14 +97,61 @@ public class Collection extends IdibonHash {
     }
 
     /**
-     * Returns the tasks defined for this collection.
+     * Returns all {@link com.idibon.api.model.Task} instances defined
+     * in this Collection.
+     *
+     * @return A read-only list of tasks.
      */
-    public List<? extends Task> getTasks() throws IOException {
+    public List<Task> getAllTasks() throws IOException {
         JsonArray taskArray = get(Keys.tasks);
         List<Task> tasks = new ArrayList<>(taskArray.size());
         for (JsonObject taskJson : taskArray.getValuesAs(JsonObject.class))
             tasks.add(task(taskJson.getString(Task.Keys.name.name())));
-        return tasks;
+        return Collections.unmodifiableList(tasks);
+    }
+
+    /**
+     * Returns the <i>root</i> tasks on this collection. A
+     * {@link com.idibon.api.model.Task} is a <i>root</i> task if it is not
+     * listed as a triggered subtask for any {@link com.idibon.api.model.Label}
+     * in the Collection.
+     *
+     * Any tasks that are included in a cyclic sub-ontology will not be
+     * returned.
+     *
+     * @return A read-only list of tasks.
+     */
+    public List<Task> getRootTasks() throws IOException {
+        // all listed subtasks
+        Set<String> allSubtasks = new HashSet<>();
+
+        JsonArray taskArray = get(Keys.tasks);
+        /* construct a list of the names of every task that is triggered as a
+         * subtask anywhere in the ontology. */
+        for (JsonObject taskJson : taskArray.getValuesAs(JsonObject.class)) {
+            JsonObject config = taskJson.getJsonObject(Task.Keys.config.name());
+            if (config == null) continue;
+            JsonObject subtasks = config.getJsonObject(CONFIG_SUBTASK_KEY);
+            if (subtasks == null) continue;
+
+            // add all of this task's subtasks to the set of all subtasks
+            for (JsonValue triggers : subtasks.values()) {
+                if (!(triggers instanceof JsonArray)) continue;
+                JsonArray array = (JsonArray)triggers;
+                for (JsonString trigger : array.getValuesAs(JsonString.class))
+                    allSubtasks.add(trigger.getString());
+            }
+        }
+
+        // root tasks are just any task that is not in subtasks
+        List<Task> result = new ArrayList<>();
+        for (JsonObject taskJson : taskArray.getValuesAs(JsonObject.class)) {
+            String taskName = taskJson.getString(Task.Keys.name.name());
+            if (!allSubtasks.contains(taskName))
+                result.add(task(taskName));
+        }
+
+        return result;
     }
 
     /**
@@ -117,6 +164,9 @@ public class Collection extends IdibonHash {
 
     /**
      * Returns a Document instance for a document with the given name.
+     *
+     * @param name Name of the document
+     * @return {@link com.idibon.api.model.Document} instance.
      */
     public Document document(String name) {
         return Document.instance(this, name);
