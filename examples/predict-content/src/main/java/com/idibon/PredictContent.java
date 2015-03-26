@@ -33,11 +33,11 @@ public class PredictContent
             wrapCharSequences(Arrays.asList(content));
 
         // Drop the prediction threshold to 0.6 to pick up more features
-        Iterable<Either<IOException, DocumentPrediction>> predictedResults =
+        PredictionIterable<DocumentPrediction> predictedResults =
             task.classifications(streamDocuments).withSignificantFeatures(0.6);
 
-        for (Either<IOException, DocumentPrediction> pred : predictedResults) {
-            if (pred.isLeft()) throw pred.left;
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> pred : predictedResults) {
+            if (pred.isLeft()) throw pred.left.exception;
             DocumentPrediction p = pred.right;
             Map<Label, Double> confidence = p.getPredictedConfidences();
             Map<Label, List<String>> features = p.getSignificantFeatures();

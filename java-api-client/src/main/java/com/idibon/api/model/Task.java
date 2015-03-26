@@ -124,9 +124,9 @@ public class Task extends IdibonHash {
      */
     public DocumentPrediction classifications(DocumentContent doc)
           throws IOException {
-        Either<IOException, DocumentPrediction> result =
+        Either<APIFailure<DocumentContent>, DocumentPrediction> result =
             classifications(Arrays.asList(doc)).iterator().next();
-        if (result.isLeft()) throw result.left;
+        if (result.isLeft()) throw result.left.exception;
         return result.right;
     }
 
@@ -159,9 +159,9 @@ public class Task extends IdibonHash {
      * @return The {@link com.idibon.api.model.SpanPrediction} result.
      */
     public SpanPrediction spans(DocumentContent doc) throws IOException {
-        Either<IOException, SpanPrediction> result =
+        Either<APIFailure<DocumentContent>, SpanPrediction> result =
             spans(Arrays.asList(doc)).iterator().next();
-        if (result.isLeft()) throw result.left;
+        if (result.isLeft()) throw result.left.exception;
         return result.right;
     }
 

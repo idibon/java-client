@@ -21,14 +21,14 @@ import static com.idibon.api.model.Util.JSON_BF;
  * Generates predictions for one or more predictable items.
  */
 public class PredictionIterable<T extends Prediction>
-      implements Iterable<Either<IOException, T>> {
+      implements Iterable<Either<APIFailure<DocumentContent>, T>> {
 
     /**
      * Default feature threshold. Returns moderate-strongly predictive features
      */
     public static final double DEFAULT_FEATURE_THRESHOLD = 0.7;
 
-    public Iterator<Either<IOException, T>> iterator() {
+    public Iterator<Either<APIFailure<DocumentContent>, T>> iterator() {
         return this.new Iter();
     }
 
@@ -105,7 +105,8 @@ public class PredictionIterable<T extends Prediction>
      * Uses a circular buffer internally (limited to DISPATCH_LIMIT items) to
      * store issued requests.
      */
-    private class Iter implements Iterator<Either<IOException, T>> {
+    private class Iter
+          implements Iterator<Either<APIFailure<DocumentContent>, T>> {
         private Iter() {
             _itemIt = _items.iterator();
             _queue = new LinkedList<>();
@@ -116,14 +117,17 @@ public class PredictionIterable<T extends Prediction>
             return !_queue.isEmpty() || _itemIt.hasNext();
         }
 
-        public Either<IOException, T> next() {
+        public Either<APIFailure<DocumentContent>, T> next() {
             if (!hasNext()) throw new NoSuchElementException();
             Entry head = _queue.removeFirst();
 
             Either<IOException, JsonArray> result =
                 head.future.getAs(JsonArray.class);
 
-            if (result.isLeft()) return Either.left(result.left);
+            if (result.isLeft()) {
+                return Either.left(
+                    APIFailure.failure(result.left, head.request));
+            }
 
             try {
                 T prediction = _constructor.newInstance(

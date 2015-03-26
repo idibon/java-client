@@ -135,9 +135,9 @@ public class IdibonAPI_IT {
         Collection c = _apiClient.collection("general_sentiment_5pt_scale");
         Task sentiment = c.task("Sentiment");
         List<String> predicted = new ArrayList<String>();
-        for (Either<IOException, DocumentPrediction> p : sentiment
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> p : sentiment
                  .classifications(flattenRight(c.documents().first(100)))) {
-            if (p.isLeft()) throw p.left;
+            if (p.isLeft()) throw p.left.exception;
             predicted.add(p.right.getRequestedAs(Document.class).getName());
             assertThat(p.right.getPredictedConfidences().size(), is(5));
         }
@@ -157,13 +157,13 @@ public class IdibonAPI_IT {
             .classifications(flattenRight(c.documents().first()));
 
         // first, try without specifying a feature threshold.
-        for (Either<IOException, DocumentPrediction> p : predictions) {
-            if (p.isLeft()) throw p.left;
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> p : predictions) {
+            if (p.isLeft()) throw p.left.exception;
             assertThat(p.right.getSignificantFeatures(), is(nullValue()));
         }
 
-        for (Either<IOException, DocumentPrediction> p : predictions.withSignificantFeatures(0.5)) {
-            if (p.isLeft()) throw p.left;
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> p : predictions.withSignificantFeatures(0.5)) {
+            if (p.isLeft()) throw p.left.exception;
             Map<Label, List<String>> features = p.right.getSignificantFeatures();
             assertThat(features, is(not(nullValue())));
             assertThat(features.size(), is(not(0)));
