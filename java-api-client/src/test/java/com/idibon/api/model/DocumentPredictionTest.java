@@ -22,6 +22,7 @@ public class DocumentPredictionTest {
         assertThat(p.getSignificantFeatures(), is(nullValue()));
         Map<Label, Double> confidence = p.getPredictedConfidences();
         assertThat(confidence.get(mockTask.label("A")).doubleValue(), is(closeTo(0.6, 0.001)));
+        assertThat(confidence.get(mockTask.label("B")).doubleValue(), is(closeTo(0.5, 0.001)));
     }
 
     @Test public void testWithFeatures() throws Exception {

@@ -18,6 +18,7 @@ import org.junit.*;
 
 import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
+import static com.idibon.api.util.Adapters.wrapCharSequence;
 import static com.idibon.api.util.Adapters.buildAnnotations;
 import static com.idibon.api.util.Adapters.flattenRight;
 import static com.idibon.api.model.DocumentSearcher.ReturnData.*;
@@ -379,6 +380,25 @@ public class IdibonAPI_IT {
             }
         } finally {
             parent.delete();
+        }
+    }
+
+    @Test public void appliesPercolatedRules() throws Exception {
+        Collection c = _apiClient.collection("ReutersCopy1");
+        Task topic = c.task("topic");
+        Task tea_subtask = c.createTask(Task.Scope.document, "tea")
+            .addLabel("snowman ☃").commit();
+        try {
+            Label snowman = tea_subtask.label("snowman ☃");
+            tea_subtask.addRules(snowman.createRule("doge", 0.99));
+            topic.addSubtaskTriggers(topic.label("tea"), tea_subtask);
+            DocumentPrediction pred = topic.classifications(
+              wrapCharSequence("Doge. Doge doge. Doge doge doge."));
+            /* even though significant features weren't requested, the API should
+             * return the matching rules */
+            assertThat(pred.getSignificantFeatures(), hasKey(topic.label("tea")));
+        } finally {
+            tea_subtask.delete();
         }
     }
 

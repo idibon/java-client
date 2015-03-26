@@ -44,8 +44,7 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
         JsonObject classes = _rawPredictions.getJsonObject(0)
             .getJsonObject("classes");
 
-        if (classes == null)
-            throw new IOException("API returned no data.");
+        if (classes == null) throw new IOException("API returned no data.");
 
         Map<Label, Double> confMap = new HashMap<>();
         for (Map.Entry<String, JsonValue> entry : classes.entrySet()) {

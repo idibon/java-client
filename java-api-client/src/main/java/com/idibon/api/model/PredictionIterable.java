@@ -61,13 +61,17 @@ public class PredictionIterable<T extends Prediction>
     }
 
     PredictionIterable(Class<T> clazz, Task target,
-                       Iterable<? extends DocumentContent> items) {
+          Iterable<? extends DocumentContent> items) {
         try {
             _constructor = clazz.getDeclaredConstructor(
                 JsonArray.class, DocumentContent.class, Task.class);
         } catch (Exception ex) {
             throw new Error("Impossible");
         }
+
+        // disable hierarchical predictions, since these don't work very well
+        if (DocumentPrediction.class.isAssignableFrom(clazz))
+            _predictionThreshold = 1.1;
         _target = target;
         _items = items;
     }
@@ -77,6 +81,10 @@ public class PredictionIterable<T extends Prediction>
 
     // Cutoff threshold for feature significance
     private double _featureThreshold = DEFAULT_FEATURE_THRESHOLD;
+
+    /* Cutoff threshold for returned spans / document hierarchies (0.49 is
+     * the server's default value */
+    private double _predictionThreshold = 0.49;
 
     // The task being predicted against
     private final Task _target;
@@ -149,7 +157,8 @@ public class PredictionIterable<T extends Prediction>
          * @return A promise with the prediction result
          */
         private HttpFuture<JsonValue> makePrediction(DocumentContent content) {
-            JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+            JsonObjectBuilder bldr = JSON_BF.createObjectBuilder()
+                .add("threshold", _predictionThreshold);
             JsonObject body = null;
 
             if (_includeFeatures) {
