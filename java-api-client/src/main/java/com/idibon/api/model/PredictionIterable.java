@@ -3,6 +3,8 @@
  */
 package com.idibon.api.model;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.NoSuchElementException;
 import java.util.LinkedList;
 import java.util.Iterator;
@@ -60,7 +62,12 @@ public class PredictionIterable<T extends Prediction>
 
     PredictionIterable(Class<T> clazz, Task target,
                        Iterable<? extends DocumentContent> items) {
-        _clazz = clazz;
+        try {
+            _constructor = clazz.getDeclaredConstructor(
+                JsonArray.class, DocumentContent.class, Task.class);
+        } catch (Exception ex) {
+            throw new Error("Impossible");
+        }
         _target = target;
         _items = items;
     }
@@ -75,7 +82,7 @@ public class PredictionIterable<T extends Prediction>
     private final Task _target;
 
     // Type of predictions (span vs document) being performed
-    private final Class<T> _clazz;
+    private final Constructor<T> _constructor;
 
     // The items that will be predicted
     private final Iterable<? extends DocumentContent> _items;
@@ -111,11 +118,12 @@ public class PredictionIterable<T extends Prediction>
             if (result.isLeft()) return Either.left(result.left);
 
             try {
-                T prediction = _clazz.newInstance();
-                prediction.init(result.right, head.request, _target);
+                T prediction = _constructor.newInstance(
+                    result.right, head.request, _target);
                 advance(head);
                 return Either.right(prediction);
-            } catch (InstantiationException | IllegalAccessException _) {
+            } catch (InstantiationException | IllegalAccessException |
+                     IllegalArgumentException | InvocationTargetException _) {
                 throw new Error("Impossible");
             }
         }

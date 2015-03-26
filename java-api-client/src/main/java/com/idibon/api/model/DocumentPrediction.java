@@ -97,13 +97,13 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
         return Collections.unmodifiableMap(featMap);
     }
 
-    public void init(JsonArray v, DocumentContent requested, Task task) {
+    DocumentPrediction(JsonArray v, DocumentContent requested, Task task) {
         _requested = requested;
         _rawPredictions = v;
         _task = task;
     }
 
-    private JsonArray _rawPredictions;
-    private DocumentContent _requested;
-    private Task _task;
+    private final JsonArray _rawPredictions;
+    private final DocumentContent _requested;
+    private final Task _task;
 }
