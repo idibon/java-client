@@ -191,7 +191,7 @@ public class Label {
     }
 
     @Override public String toString() {
-        return _task.getName() + "#" + _name;
+        return "Label<" + _task.getName() + "#" + _name + ">";
     }
 
     @Override public boolean equals(Object other) {

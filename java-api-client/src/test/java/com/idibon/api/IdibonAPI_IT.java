@@ -352,6 +352,31 @@ public class IdibonAPI_IT {
             } finally {
                 child.delete();
             }
+            assertThat(trigger.getSubtasks(), not(hasItem(child)));
+        } finally {
+            parent.delete();
+        }
+    }
+
+    @Test public void distinguishesRootTasksFromAllTasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        assertThat(c.getRootTasks(), is(c.getAllTasks()));
+
+        Task parent = c.createTask(Task.Scope.document, "Parent Task")
+            .addLabel("Trigger").commit();
+        Label trigger = parent.label("Trigger");
+
+        try {
+            Task child = c.createTask(Task.Scope.document, "Child task").commit();
+            try {
+                assertThat(c.getRootTasks(), hasItems(parent, child));
+                parent.addSubtaskTriggers(trigger, child);
+                assertThat(c.getRootTasks(), hasItem(parent));
+                assertThat(c.getRootTasks(), not(hasItem(child)));
+                assertThat(c.getRootTasks(), is(not(c.getAllTasks())));
+            } finally {
+                child.delete();
+            }
         } finally {
             parent.delete();
         }

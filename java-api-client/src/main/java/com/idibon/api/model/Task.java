@@ -455,6 +455,7 @@ public class Task extends IdibonHash {
             _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
         if (result.isLeft()) throw result.left;
         invalidate(); // clear out cached parse results
+        _parent.invalidate();
         preload(result.right);
     }
 
@@ -486,6 +487,7 @@ public class Task extends IdibonHash {
             _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
         if (result.isLeft()) throw result.left;
         invalidate(); // clear out cached parsed results
+        _parent.invalidate();
         preload(result.right);
     }
 
@@ -498,6 +500,10 @@ public class Task extends IdibonHash {
         _tuningRules = null;
         _ontology = null;
         return this;
+    }
+
+    @Override public String toString() {
+        return "Task<" + _parent.getName() + "#" + _name + ">";
     }
 
     @Override public boolean equals(Object other) {

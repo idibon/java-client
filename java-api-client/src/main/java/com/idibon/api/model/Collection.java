@@ -86,6 +86,13 @@ public class Collection extends IdibonHash {
     }
 
     /**
+     * Returns the collection name
+     */
+    public String getName() {
+        return _name;
+    }
+
+    /**
      * Returns the value in the JSON hash for the specified key.
      *
      * @param key The value in the JSON hash to return
