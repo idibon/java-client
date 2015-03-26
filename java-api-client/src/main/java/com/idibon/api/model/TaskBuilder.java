@@ -45,7 +45,7 @@ public class TaskBuilder {
      * You must call {@link com.idibon.api.model.TaskBuilder#commit} for the
      * changes to take effect.
      *
-     * @param name The new name for the task.
+     * @param description The new description for the task.
      * @return this.
      */
     public TaskBuilder setDescription(String description) {
@@ -55,7 +55,7 @@ public class TaskBuilder {
     }
 
     /**
-     * Enables this {@link com.idibion.api.model.Task}.
+     * Enables this {@link com.idibon.api.model.Task}.
      *
      * You must call {@link com.idibon.api.model.TaskBuilder#commit} for the
      * changes to take effect.
@@ -68,7 +68,7 @@ public class TaskBuilder {
     }
 
     /**
-     * Disables this {@link com.idibion.api.model.Task}.
+     * Disables this {@link com.idibon.api.model.Task}.
      *
      * You must call {@link com.idibon.api.model.TaskBuilder#commit} for the
      * changes to take effect.

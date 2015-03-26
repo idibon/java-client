@@ -72,8 +72,8 @@ public class Label {
      * Returns the label's UUID.
      *
      * @return UUID for the label.
-     * @throw NoSuchElementException if the label hasn't been committed
-     * @throw IOException if an error occurs communicating over the API.
+     * @throws NoSuchElementException if the label hasn't been committed
+     * @throws IOException if an error occurs communicating over the API.
      */
     public UUID getUUID() throws IOException {
         String raw = getJson().getString(Keys.uuid.name(), null);

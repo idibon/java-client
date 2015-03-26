@@ -9,8 +9,7 @@ import java.util.*;
 import javax.json.*;
 
 /**
- * Prediction results for {@link com.idibon.api.model.Task.Scope.span}-scope
- * tasks.
+ * Prediction results for span-scope tasks.
  *
  * A prediction result may include predictions for any number of
  * {@link com.idibon.api.model.SpanPrediction.Span} regions, and multiple

@@ -429,7 +429,7 @@ public class Task extends IdibonHash {
     /**
      * Returns true if child is an ontological descendent of this task.
      *
-     * @param child A {@link com.idibon.api.model.Task} to test.
+     * @param check A {@link com.idibon.api.model.Task} to test.
      * @return true if child is located within the ontology rooted at
      *         the current node. false if not.
      */
