@@ -103,6 +103,22 @@ public final class Adapters {
     }
 
     /**
+     * Adapts between a {@link java.lang.CharSequence} instance and
+     * {@link com.idibon.api.model.DocumentContent}.
+     *
+     * This can be used to wrap a Java String in a format suitable for uploading
+     * either as ephemeral predictions or for permanent storage under server-
+     * assigned names.
+     *
+     * @param sequence A {@link java.lang.CharSequence}
+     * @return {@link com.idibon.api.model.DocumentContent} facade for sequence
+     */
+    public static DocumentContent wrapCharSequence(CharSequence sequence) {
+        return new CharSequenceContent(sequence);
+    }
+
+
+    /**
      * Adapts between {@link java.lang.CharSequence} instances and
      * {@link com.idibon.api.model.DocumentContent}.
      *
