@@ -14,6 +14,7 @@ import com.idibon.api.model.*;
 import com.idibon.api.IdibonAPI;
 import com.idibon.api.util.Either;
 
+import static com.idibon.api.util.Adapters.wrapCharSequence;
 import static com.idibon.api.util.Adapters.wrapCharSequences;
 
 /**
@@ -22,10 +23,10 @@ import static com.idibon.api.util.Adapters.wrapCharSequences;
 public class PredictContent
 {
     /**
-     * Generates a streaming prediction for the provided content, and
-     * reports all of the per-label confidences and significant features.
+     * Generates a streaming document-scope prediction for the provided content,
+     * and reports all of the per-label confidences and significant features.
      */
-    public static void makePrediction(Task task, String content)
+    public static void makeDocumentPrediction(Task task, String content)
           throws Exception {
 
         Iterable<DocumentContent> streamDocuments =
@@ -57,6 +58,21 @@ public class PredictContent
         }
     }
 
+    /**
+     * Generates a streaming span-scope prediction for the provided content, and
+     * reports all of the per-label confidences and significant features.
+     */
+    public static void makeSpanPrediction(Task task, String content)
+          throws Exception {
+        List<SpanPrediction.Span> spans =
+            task.spans(wrapCharSequence(content)).getSpans();
+
+        for (SpanPrediction.Span span : spans) {
+            System.out.printf("%s %.3f %s\n",
+                span.label.getName(), span.confidence, span.text);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length < 4) {
             System.out.printf("Usage: %s API_KEY COLLECTION TASK Content...\n",
@@ -80,7 +96,14 @@ public class PredictContent
         }
 
         try {
-            makePrediction(task, content);
+            switch (task.getScope()) {
+            case span:
+                makeSpanPrediction(task, content);
+                break;
+            case document:
+                makeDocumentPrediction(task, content);
+                break;
+            }
         } finally {
             client.shutdown(0);
         }
