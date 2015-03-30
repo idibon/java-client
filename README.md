@@ -11,7 +11,7 @@ API client as
 ```
 <groupId>com.idibon.api.java-sdk</groupId>
 <artifactId>java-api-client</artifactId>
-<version>0.8.0-SNAPSHOT</version>
+<version>1.0.0</version>
 ```
 
 Example apps are located in the `examples/` subdirectory.
@@ -40,7 +40,7 @@ To run
 
 ```
 cd examples/list-documents/target
-java -cp list-documents-0.8.0-SNAPSHOT-jar-with-dependencies.jar \
+java -cp list-documents-1.0.0-jar-with-dependencies.jar \
   com.idibon.ListDocuments $API_KEY $COLLECTION
 ```
 
@@ -49,7 +49,7 @@ java -cp list-documents-0.8.0-SNAPSHOT-jar-with-dependencies.jar \
 To run
 ```
 cd examples/upload-json-documents/target
-java -cp upload-json-documents-0.8.0-SNAPSHOT-jar-with-dependencies.jar \
+java -cp upload-json-documents-1.0.0-jar-with-dependencies.jar \
   com.idibon.UploadJsonDocuments $API_KEY $COLLECTION files.json...
 ```
 
@@ -74,7 +74,7 @@ JSON files should have the following structure:
 To run
 ```
 cd examples/annotate-document/target
-java -cp annotate-document-0.8.0-SNAPSHOT-jar-with-dependencies.jar \
+java -cp annotate-document-1.0.0-jar-with-dependencies.jar \
   com.idibon.AnnotateDocument $API_KEY $COLLECTION $DOCUMENT $TASK $LABEL
 ```
 
@@ -96,7 +96,7 @@ to the console.
 To run
 ```
 cd examples/predict-content/target
-java -cp predict-content-0.8.0-SNAPSHOT-jar-with-dependencies.jar \
+java -cp predict-content-1.0.0-jar-with-dependencies.jar \
   com.idibon.PredictContent $API_KEY $COLLECTION $TASK Some content...
 ```
 

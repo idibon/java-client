@@ -44,8 +44,7 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
         JsonObject classes = _rawPredictions.getJsonObject(0)
             .getJsonObject("classes");
 
-        if (classes == null)
-            throw new IOException("API returned no data.");
+        if (classes == null) throw new IOException("API returned no data.");
 
         Map<Label, Double> confMap = new HashMap<>();
         for (Map.Entry<String, JsonValue> entry : classes.entrySet()) {
@@ -97,13 +96,13 @@ public class DocumentPrediction implements Prediction<DocumentPrediction> {
         return Collections.unmodifiableMap(featMap);
     }
 
-    public void init(JsonArray v, DocumentContent requested, Task task) {
+    DocumentPrediction(JsonArray v, DocumentContent requested, Task task) {
         _requested = requested;
         _rawPredictions = v;
         _task = task;
     }
 
-    private JsonArray _rawPredictions;
-    private DocumentContent _requested;
-    private Task _task;
+    private final JsonArray _rawPredictions;
+    private final DocumentContent _requested;
+    private final Task _task;
 }

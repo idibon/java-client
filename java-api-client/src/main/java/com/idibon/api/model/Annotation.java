@@ -9,6 +9,7 @@ import java.util.*;
 import javax.json.*;
 
 import com.idibon.api.http.HttpFuture;
+import com.idibon.api.util.UnicodeExtractor;
 
 import static com.idibon.api.model.Util.*;
 
@@ -428,8 +429,7 @@ public abstract class Annotation {
          * Returns the text that is included in the span.
          */
         public String getText() throws IOException {
-            String content = _content.getContent();
-            return content.substring(this.offset, this.offset + this.length);
+            return UnicodeExtractor.extract(_content, this.offset, this.length);
         }
 
         SpanAssignment(DocumentContent doc, UUID uuid, boolean active,

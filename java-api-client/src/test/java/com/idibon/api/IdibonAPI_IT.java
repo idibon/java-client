@@ -18,6 +18,7 @@ import org.junit.*;
 
 import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
+import static com.idibon.api.util.Adapters.wrapCharSequence;
 import static com.idibon.api.util.Adapters.buildAnnotations;
 import static com.idibon.api.util.Adapters.flattenRight;
 import static com.idibon.api.model.DocumentSearcher.ReturnData.*;
@@ -134,9 +135,9 @@ public class IdibonAPI_IT {
         Collection c = _apiClient.collection("general_sentiment_5pt_scale");
         Task sentiment = c.task("Sentiment");
         List<String> predicted = new ArrayList<String>();
-        for (Either<IOException, DocumentPrediction> p : sentiment
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> p : sentiment
                  .classifications(flattenRight(c.documents().first(100)))) {
-            if (p.isLeft()) throw p.left;
+            if (p.isLeft()) throw p.left.exception;
             predicted.add(p.right.getRequestedAs(Document.class).getName());
             assertThat(p.right.getPredictedConfidences().size(), is(5));
         }
@@ -156,13 +157,13 @@ public class IdibonAPI_IT {
             .classifications(flattenRight(c.documents().first()));
 
         // first, try without specifying a feature threshold.
-        for (Either<IOException, DocumentPrediction> p : predictions) {
-            if (p.isLeft()) throw p.left;
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> p : predictions) {
+            if (p.isLeft()) throw p.left.exception;
             assertThat(p.right.getSignificantFeatures(), is(nullValue()));
         }
 
-        for (Either<IOException, DocumentPrediction> p : predictions.withSignificantFeatures(0.5)) {
-            if (p.isLeft()) throw p.left;
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> p : predictions.withSignificantFeatures(0.5)) {
+            if (p.isLeft()) throw p.left.exception;
             Map<Label, List<String>> features = p.right.getSignificantFeatures();
             assertThat(features, is(not(nullValue())));
             assertThat(features.size(), is(not(0)));
@@ -313,6 +314,92 @@ public class IdibonAPI_IT {
         }
 
         assertThat(task.getSubtasks().keySet(), is(empty()));
+    }
+
+    @Test public void canAddAndRemoveTasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task snowman = c.createTask(Task.Scope.document, "Hi ☃")
+            .setDescription("It's U+2603")
+            .addLabel("Snowman")
+            .addLabel("Frosty")
+            .disallowTraining()
+            .commit();
+        try {
+            c.invalidate();
+            assertThat(c.getAllTasks(), hasItem(snowman));
+        } finally {
+            snowman.delete();
+        }
+        c.invalidate();
+        assertThat(c.getAllTasks(), not(hasItem(snowman)));
+    }
+
+    @Test public void automaticallyRenamesSubtasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        Task parent = c.createTask(Task.Scope.document, "Parent Task")
+            .addLabel("Trigger").commit();
+        Label trigger = parent.label("Trigger");
+
+        try {
+            Task child = c.createTask(Task.Scope.document, "Child task").commit();
+            try {
+                parent.addSubtaskTriggers(trigger, child);
+                assertThat(trigger.getSubtasks(), hasItem(child));
+                Task sibling = child;
+                child = child.modify().setName("Sibling").commit();
+                assertThat(child.getName(), is("Sibling"));
+                assertThat(trigger.getSubtasks(), not(hasItem(sibling)));
+                assertThat(trigger.getSubtasks(), hasItem(child));
+            } finally {
+                child.delete();
+            }
+            assertThat(trigger.getSubtasks(), not(hasItem(child)));
+        } finally {
+            parent.delete();
+        }
+    }
+
+    @Test public void distinguishesRootTasksFromAllTasks() throws Exception {
+        Collection c = _apiClient.collection("zest_zest");
+        assertThat(c.getRootTasks(), is(c.getAllTasks()));
+
+        Task parent = c.createTask(Task.Scope.document, "Parent Task")
+            .addLabel("Trigger").commit();
+        Label trigger = parent.label("Trigger");
+
+        try {
+            Task child = c.createTask(Task.Scope.document, "Child task").commit();
+            try {
+                assertThat(c.getRootTasks(), hasItems(parent, child));
+                parent.addSubtaskTriggers(trigger, child);
+                assertThat(c.getRootTasks(), hasItem(parent));
+                assertThat(c.getRootTasks(), not(hasItem(child)));
+                assertThat(c.getRootTasks(), is(not(c.getAllTasks())));
+            } finally {
+                child.delete();
+            }
+        } finally {
+            parent.delete();
+        }
+    }
+
+    @Test public void appliesPercolatedRules() throws Exception {
+        Collection c = _apiClient.collection("ReutersCopy1");
+        Task topic = c.task("topic");
+        Task tea_subtask = c.createTask(Task.Scope.document, "tea")
+            .addLabel("snowman ☃").commit();
+        try {
+            Label snowman = tea_subtask.label("snowman ☃");
+            tea_subtask.addRules(snowman.createRule("doge", 0.99));
+            topic.addSubtaskTriggers(topic.label("tea"), tea_subtask);
+            DocumentPrediction pred = topic.classifications(
+              wrapCharSequence("Doge. Doge doge. Doge doge doge."));
+            /* even though significant features weren't requested, the API should
+             * return the matching rules */
+            assertThat(pred.getSignificantFeatures(), hasKey(topic.label("tea")));
+        } finally {
+            tea_subtask.delete();
+        }
     }
 
     @AfterClass public static void shutdown() {

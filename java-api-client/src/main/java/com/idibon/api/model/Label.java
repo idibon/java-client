@@ -5,13 +5,11 @@ package com.idibon.api.model;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
-import java.util.NoSuchElementException;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import javax.json.*;
 
 import com.idibon.api.util.Either;
+import com.idibon.api.model.Collection;
 import static com.idibon.api.model.Util.JSON_BF;
 
 /**
@@ -74,8 +72,8 @@ public class Label {
      * Returns the label's UUID.
      *
      * @return UUID for the label.
-     * @throw NoSuchElementException if the label hasn't been committed
-     * @throw IOException if an error occurs communicating over the API.
+     * @throws NoSuchElementException if the label hasn't been committed
+     * @throws IOException if an error occurs communicating over the API.
      */
     public UUID getUUID() throws IOException {
         String raw = getJson().getString(Keys.uuid.name(), null);
@@ -94,6 +92,20 @@ public class Label {
      */
     public String getName() {
         return _name;
+    }
+
+    /**
+     * Returns all of the {@link com.idibon.api.model.Task} that should be
+     * triggered when this Label is confidently predicted by the API.
+     *
+     * @return Set of {@link com.idibon.api.model.Task} objects.
+     */
+    public Set<Task> getSubtasks() throws IOException {
+        Map<Label, Set<? extends Task>> allSubtasks = _task.getSubtasks();
+        if (allSubtasks == null) return Collections.<Task>emptySet();
+        Set<? extends Task> subtasks = allSubtasks.get(this);
+        if (subtasks == null) return Collections.<Task>emptySet();
+        return Collections.<Task>unmodifiableSet(subtasks);
     }
 
     /**
@@ -179,7 +191,7 @@ public class Label {
     }
 
     @Override public String toString() {
-        return _task.getName() + "#" + _name;
+        return "Label<" + _task.getName() + "#" + _name + ">";
     }
 
     @Override public boolean equals(Object other) {

@@ -111,30 +111,77 @@ public class Task extends IdibonHash {
     }
 
     /**
-     * Calls the prediction API for all of the provided documents for this
-     * class.
+     * Classifies a single document.
      *
-     * @param items The items that should be predicted
-     * @param predictClass The class of prediction results expected, e.g.,
-     *        DocumentPrediction.class for document-scope tasks,
-     *        SpanPrediction.class for span-scope tasks.
+     * This is the same as calling classifications(Arrays.asList(doc)),
+     * accessing the first (and only) element returned from the iterable, and
+     * either throwing the exception on error or returning the prediction
+     * object on success.
+     *
+     * @param doc A {@link com.idibon.api.model.DocumentContent} to predict.
+     * @return The {@link com.idibon.api.model.SpanPrediction} result.
+
      */
-    public <T extends Prediction> PredictionIterable<T> predictions(
-            Iterable<? extends DocumentContent> items, Class<T> predictClass) {
-        return new PredictionIterable<T>(predictClass, this, items);
+    public DocumentPrediction classifications(DocumentContent doc)
+          throws IOException {
+        Either<APIFailure<DocumentContent>, DocumentPrediction> result =
+            classifications(Arrays.asList(doc)).iterator().next();
+        if (result.isLeft()) throw result.left.exception;
+        return result.right;
     }
 
     /**
-     * Calls the prediction API to get document classification results for
-     * this task. This methos is the same as calling
-     * Task#predictions(items, DocumentPrediction.class)
+     * Calls the prediction API to classify the list of documents according to
+     * the {@link com.idibon.api.model.Label} defined for this Task.
      *
      * @param items Items to predict
+     * @return A PredictionIterable that can be adjusted to return extra
+     *         information for each prediction (such as significant features),
+     *         and which lazily classifies all of the listed documents.
      */
     public PredictionIterable<DocumentPrediction> classifications(
-            Iterable<? extends DocumentContent> items) {
+          Iterable<? extends DocumentContent> items) throws IOException {
+        if (getScope() != Scope.document)
+            throw new UnsupportedOperationException("Not a document task");
+
         return new PredictionIterable<DocumentPrediction>(
-          DocumentPrediction.class, this, items);
+            DocumentPrediction.class, this, items);
+    }
+
+    /**
+     * Extracts spans from a single document.
+     *
+     * This is the same as calling spans(Arrays.asList(doc)), accessing the
+     * first (and only) element returned from the iterable, and either throwing
+     * the exception on error or returning the prediction object on success.
+     *
+     * @param doc A {@link com.idibon.api.model.DocumentContent} to predict.
+     * @return The {@link com.idibon.api.model.SpanPrediction} result.
+     */
+    public SpanPrediction spans(DocumentContent doc) throws IOException {
+        Either<APIFailure<DocumentContent>, SpanPrediction> result =
+            spans(Arrays.asList(doc)).iterator().next();
+        if (result.isLeft()) throw result.left.exception;
+        return result.right;
+    }
+
+    /**
+     * Calls the prediction API to extract spans for a list of documents
+     * against this Task.
+     *
+     * @param items The {@link com.idibon.api.model.DocumentContent}
+     *              instances to predict.
+     * @return A PredictionIterable that can be adjusted to return extra
+     *         information for each prediction, and which lazily extracts
+     *         spans on all of the listed documents.
+     */
+    public PredictionIterable<SpanPrediction> spans(
+          Iterable<? extends DocumentContent> items) throws IOException {
+        if (getScope() != Scope.span)
+            throw new UnsupportedOperationException("Not a span task");
+
+        return new PredictionIterable<SpanPrediction>(
+            SpanPrediction.class, this, items);
     }
 
     /**
@@ -212,6 +259,37 @@ public class Task extends IdibonHash {
             (Map<Label, List<? extends TuningRules.Rule>>)(Object)
             getCachedTuningRules();
         return Collections.unmodifiableMap(r);
+    }
+
+    /**
+     * Creates a {@link com.idibon.api.model.TaskBuilder} instance to modify
+     * properties of this {@link com.idibon.api.model.Task}.
+     *
+     * You must call {@link com.idibon.api.model.TaskBuilder#commit} on the
+     * returned object to save the modifications to the API.
+     *
+     * @return {@link com.idibon.api.model.TaskBuilder} modifying this Task.
+     */
+    public TaskBuilder modify() {
+        return new TaskBuilder(this);
+    }
+
+    /**
+     * Deletes this task, and removes all references to it from the ontology.
+     */
+    public void delete() throws IOException {
+        JsonObject body = JSON_BF.createObjectBuilder()
+            .add("task", true).build();
+
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpDelete(getEndpoint(), body).getAs(JsonObject.class);
+
+        if (result.isLeft()) throw result.left;
+        if (!result.right.getBoolean("deleted"))
+            throw new IOException ("Task was not deleted");
+
+        // propagate the delete to all parent task ontologies
+        _parent.commitTaskUpdate(this, null);
     }
 
     /**
@@ -351,7 +429,7 @@ public class Task extends IdibonHash {
     /**
      * Returns true if child is an ontological descendent of this task.
      *
-     * @param child A {@link com.idibon.api.model.Task} to test.
+     * @param check A {@link com.idibon.api.model.Task} to test.
      * @return true if child is located within the ontology rooted at
      *         the current node. false if not.
      */
@@ -424,6 +502,7 @@ public class Task extends IdibonHash {
             _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
         if (result.isLeft()) throw result.left;
         invalidate(); // clear out cached parse results
+        _parent.invalidate();
         preload(result.right);
     }
 
@@ -455,6 +534,7 @@ public class Task extends IdibonHash {
             _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
         if (result.isLeft()) throw result.left;
         invalidate(); // clear out cached parsed results
+        _parent.invalidate();
         preload(result.right);
     }
 
@@ -467,6 +547,10 @@ public class Task extends IdibonHash {
         _tuningRules = null;
         _ontology = null;
         return this;
+    }
+
+    @Override public String toString() {
+        return "Task<" + _parent.getName() + "#" + _name + ">";
     }
 
     @Override public boolean equals(Object other) {

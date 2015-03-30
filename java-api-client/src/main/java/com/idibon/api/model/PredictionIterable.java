@@ -3,6 +3,8 @@
  */
 package com.idibon.api.model;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.NoSuchElementException;
 import java.util.LinkedList;
 import java.util.Iterator;
@@ -19,14 +21,14 @@ import static com.idibon.api.model.Util.JSON_BF;
  * Generates predictions for one or more predictable items.
  */
 public class PredictionIterable<T extends Prediction>
-      implements Iterable<Either<IOException, T>> {
+      implements Iterable<Either<APIFailure<DocumentContent>, T>> {
 
     /**
      * Default feature threshold. Returns moderate-strongly predictive features
      */
     public static final double DEFAULT_FEATURE_THRESHOLD = 0.7;
 
-    public Iterator<Either<IOException, T>> iterator() {
+    public Iterator<Either<APIFailure<DocumentContent>, T>> iterator() {
         return this.new Iter();
     }
 
@@ -59,8 +61,20 @@ public class PredictionIterable<T extends Prediction>
     }
 
     PredictionIterable(Class<T> clazz, Task target,
-                       Iterable<? extends DocumentContent> items) {
-        _clazz = clazz;
+          Iterable<? extends DocumentContent> items) {
+        try {
+            _constructor = clazz.getDeclaredConstructor(
+                JsonArray.class, DocumentContent.class, Task.class);
+        } catch (Exception ex) {
+            throw new Error("Impossible");
+        }
+
+        /* disable hierarchical predictions, since these don't work very well
+         * setting the threshold to a value above 1.1 ensures that the server
+         * will never traverse down the hierarchy, since the maximum confidence
+         * for any prediction is 1.0. */
+        if (DocumentPrediction.class.isAssignableFrom(clazz))
+            _predictionThreshold = 1.1;
         _target = target;
         _items = items;
     }
@@ -71,11 +85,15 @@ public class PredictionIterable<T extends Prediction>
     // Cutoff threshold for feature significance
     private double _featureThreshold = DEFAULT_FEATURE_THRESHOLD;
 
+    /* Cutoff threshold for returned spans / document hierarchies (0.49 is
+     * the server's default value */
+    private double _predictionThreshold = 0.49;
+
     // The task being predicted against
     private final Task _target;
 
     // Type of predictions (span vs document) being performed
-    private final Class<T> _clazz;
+    private final Constructor<T> _constructor;
 
     // The items that will be predicted
     private final Iterable<? extends DocumentContent> _items;
@@ -90,7 +108,8 @@ public class PredictionIterable<T extends Prediction>
      * Uses a circular buffer internally (limited to DISPATCH_LIMIT items) to
      * store issued requests.
      */
-    private class Iter implements Iterator<Either<IOException, T>> {
+    private class Iter
+          implements Iterator<Either<APIFailure<DocumentContent>, T>> {
         private Iter() {
             _itemIt = _items.iterator();
             _queue = new LinkedList<>();
@@ -101,21 +120,25 @@ public class PredictionIterable<T extends Prediction>
             return !_queue.isEmpty() || _itemIt.hasNext();
         }
 
-        public Either<IOException, T> next() {
+        public Either<APIFailure<DocumentContent>, T> next() {
             if (!hasNext()) throw new NoSuchElementException();
             Entry head = _queue.removeFirst();
 
             Either<IOException, JsonArray> result =
                 head.future.getAs(JsonArray.class);
 
-            if (result.isLeft()) return Either.left(result.left);
+            if (result.isLeft()) {
+                return Either.left(
+                    APIFailure.failure(result.left, head.request));
+            }
 
             try {
-                T prediction = _clazz.newInstance();
-                prediction.init(result.right, head.request, _target);
+                T prediction = _constructor.newInstance(
+                    result.right, head.request, _target);
                 advance(head);
                 return Either.right(prediction);
-            } catch (InstantiationException | IllegalAccessException _) {
+            } catch (InstantiationException | IllegalAccessException |
+                     IllegalArgumentException | InvocationTargetException _) {
                 throw new Error("Impossible");
             }
         }
@@ -141,7 +164,8 @@ public class PredictionIterable<T extends Prediction>
          * @return A promise with the prediction result
          */
         private HttpFuture<JsonValue> makePrediction(DocumentContent content) {
-            JsonObjectBuilder bldr = JSON_BF.createObjectBuilder();
+            JsonObjectBuilder bldr = JSON_BF.createObjectBuilder()
+                .add("threshold", _predictionThreshold);
             JsonObject body = null;
 
             if (_includeFeatures) {

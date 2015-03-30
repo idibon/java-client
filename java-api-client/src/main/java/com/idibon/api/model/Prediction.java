@@ -29,10 +29,4 @@ public interface Prediction<T extends Prediction> {
      * Returns the raw JSON predictions returned by the API.
      */
     JsonArray getJson();
-
-    /**
-     * Initializes the instance using the provided raw results
-     * returned by the API.
-     */
-    void init(JsonArray v,  DocumentContent predictable, Task task);
 }

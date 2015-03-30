@@ -14,6 +14,7 @@ import com.idibon.api.model.*;
 import com.idibon.api.IdibonAPI;
 import com.idibon.api.util.Either;
 
+import static com.idibon.api.util.Adapters.wrapCharSequence;
 import static com.idibon.api.util.Adapters.wrapCharSequences;
 
 /**
@@ -22,21 +23,21 @@ import static com.idibon.api.util.Adapters.wrapCharSequences;
 public class PredictContent
 {
     /**
-     * Generates a streaming prediction for the provided content, and
-     * reports all of the per-label confidences and significant features.
+     * Generates a streaming document-scope prediction for the provided content,
+     * and reports all of the per-label confidences and significant features.
      */
-    public static void makePrediction(Task task, String content)
+    public static void makeDocumentPrediction(Task task, String content)
           throws Exception {
 
         Iterable<DocumentContent> streamDocuments =
             wrapCharSequences(Arrays.asList(content));
 
         // Drop the prediction threshold to 0.6 to pick up more features
-        Iterable<Either<IOException, DocumentPrediction>> predictedResults =
+        PredictionIterable<DocumentPrediction> predictedResults =
             task.classifications(streamDocuments).withSignificantFeatures(0.6);
 
-        for (Either<IOException, DocumentPrediction> pred : predictedResults) {
-            if (pred.isLeft()) throw pred.left;
+        for (Either<APIFailure<DocumentContent>, DocumentPrediction> pred : predictedResults) {
+            if (pred.isLeft()) throw pred.left.exception;
             DocumentPrediction p = pred.right;
             Map<Label, Double> confidence = p.getPredictedConfidences();
             Map<Label, List<String>> features = p.getSignificantFeatures();
@@ -54,6 +55,21 @@ public class PredictContent
                 }
                 System.out.printf("%s\n", result);
             }
+        }
+    }
+
+    /**
+     * Generates a streaming span-scope prediction for the provided content, and
+     * reports all of the per-label confidences and significant features.
+     */
+    public static void makeSpanPrediction(Task task, String content)
+          throws Exception {
+        List<SpanPrediction.Span> spans =
+            task.spans(wrapCharSequence(content)).getSpans();
+
+        for (SpanPrediction.Span span : spans) {
+            System.out.printf("%s %.3f %s\n",
+                span.label.getName(), span.confidence, span.text);
         }
     }
 
@@ -80,7 +96,14 @@ public class PredictContent
         }
 
         try {
-            makePrediction(task, content);
+            switch (task.getScope()) {
+            case span:
+                makeSpanPrediction(task, content);
+                break;
+            case document:
+                makeDocumentPrediction(task, content);
+                break;
+            }
         } finally {
             client.shutdown(0);
         }
