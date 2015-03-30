@@ -53,12 +53,26 @@ public class UnicodeExtractor {
         if (length <= 0) return "";
 
         String content = document.getContent();
+        /* pairs will store the initial index of every surrogate pair character
+         * in the text, ordered by increasing offset in the text. */
         int[] pairs = findSurrogates(document, content);
 
-        int offsAdj = 0; // number of "adjustments" needed to offset
+        /* each surrogate pair will have 2 offsets in the string
+         * (String.charAt). to compute the java string location given an
+         * annotation or prediction's code point index, count the number
+         * of surrogate pair characters that occur before the span begins
+         * (offsAdj), and the number before the span ends (endAdj). these
+         * adjustments can just be added directly to the start and end
+         * locations to get the java positions. */
+
+        int offsAdj = 0;
+        /* loop until we reach a surrogate pair offset that is at or after the
+         * start of the span. */
         for ( ; offsAdj < pairs.length && offset > pairs[offsAdj]; offsAdj++) ;
 
         int endAdj = offsAdj;
+        /* and continue looping until we reach the first surrogate-pair offset
+         * after the span. */
         for (int end = offset + length - 1;
                endAdj < pairs.length && end >= pairs[endAdj]; endAdj++) ;
 

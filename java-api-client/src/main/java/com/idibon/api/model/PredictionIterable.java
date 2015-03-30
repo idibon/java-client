@@ -69,7 +69,10 @@ public class PredictionIterable<T extends Prediction>
             throw new Error("Impossible");
         }
 
-        // disable hierarchical predictions, since these don't work very well
+        /* disable hierarchical predictions, since these don't work very well
+         * setting the threshold to a value above 1.1 ensures that the server
+         * will never traverse down the hierarchy, since the maximum confidence
+         * for any prediction is 1.0. */
         if (DocumentPrediction.class.isAssignableFrom(clazz))
             _predictionThreshold = 1.1;
         _target = target;
