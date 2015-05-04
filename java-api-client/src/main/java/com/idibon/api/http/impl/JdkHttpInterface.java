@@ -63,11 +63,11 @@ public class JdkHttpInterface implements HttpInterface {
      * changed dynamically as needed by the application.
      *
      * @param limit The new number of parallel connections. Must be between
-     *        1 - 50.
+     *        1 - 100.
      * @return this
      */
     public JdkHttpInterface maxConnections(int limit) {
-        if (limit <= 0 || limit > 50)
+        if (limit <= 0 || limit > 100)
             throw new IllegalArgumentException("Invalid connection limit");
 
         if (_threadPool.isShutdown() || _threadPool.isTerminating())
@@ -141,6 +141,15 @@ public class JdkHttpInterface implements HttpInterface {
         return HttpFuture.wrap(
             _threadPool.submit(new HttpOp("DELETE", endpoint, body))
         );
+    }
+
+    public int getProperty(HttpInterface.Property prop, int defaultValue) {
+        switch (prop) {
+        case ParallelRequestLimit:
+            return _threadPool.getMaximumPoolSize();
+        default:
+            return defaultValue;
+        }
     }
 
     /**
@@ -394,7 +403,7 @@ public class JdkHttpInterface implements HttpInterface {
     /* use up to 10 parallel connections by default. this provides a decent
      * level of performance with a low overhead, but can be increased if more
      * performance is needed. */
-    private static final int DEFAULT_CONNECTION_LIMIT = 10;
+    static final int DEFAULT_CONNECTION_LIMIT = 10;
 
     static {
         System.setProperty("http.maxConnections",
