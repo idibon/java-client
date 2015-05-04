@@ -144,6 +144,13 @@ public class JdkHttpInterface implements HttpInterface {
     }
 
     /**
+     * Implements {@link com.idibon.api.http.HttpInterface#close}
+     */
+    public void close() {
+        shutdown(60000);
+    }
+
+    /**
      * Implements {@link com.idibon.api.http.HttpInterface#shutdown(long)}
      *
      * @param quiesceTime Time to wait for the connections to become idle

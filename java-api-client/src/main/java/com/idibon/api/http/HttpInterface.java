@@ -11,7 +11,7 @@ import javax.json.*;
  * Generic interface abstracting the HTTP methods that are used by the
  * Idibon API client.
  */
-public interface HttpInterface {
+public interface HttpInterface extends AutoCloseable {
 
     /**
      * Executes an HTTP GET method with no parameters to the specified
@@ -66,6 +66,13 @@ public interface HttpInterface {
      * @return Decoded JSON response from the server
      */
     public HttpFuture<JsonValue> httpDelete(String endpoint, JsonObject body);
+
+    /**
+     * Waits up to 60 seconds for pending operations to complete and shuts down
+     * any execution threads that were created. Same as calling
+     * {@link shutdown(60000)}.
+     */
+    public void close();
 
     /**
      * Waits for pending operations to complete and shuts down any execution
