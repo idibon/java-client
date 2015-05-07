@@ -15,7 +15,7 @@
       <groupId>com.idibon.api</groupId>
       <artifactId>java-sdk</artifactId>
       <relativePath>../pom.xml</relativePath>
-      <version>1.0.0</version>
+      <version>1.0.1</version>
   </parent>
 
   <build>

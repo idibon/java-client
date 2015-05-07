@@ -10,6 +10,7 @@ import javax.json.*;
 
 import com.idibon.api.util.Either;
 import com.idibon.api.http.HttpFuture;
+import com.idibon.api.http.HttpInterface;
 
 import static com.idibon.api.model.Util.JSON_BF;
 
@@ -64,7 +65,7 @@ class PostDocumentsIterator
         /* For performance, upload documents in batches, and upload multiple
          * batches in parallel. Empirically, the best performance seems to be
          * when the upload batch size 25KiB - 100KiB. */
-        while (_submitQueue.size() < SUBMIT_LIMIT &&
+        while (_submitQueue.size() < _submitLimit &&
                !_quit && _contentToPost.hasNext()) {
             // create a new array for this batch of documents, if needed
             if (batch == null) batch = JSON_BF.createArrayBuilder();
@@ -158,6 +159,13 @@ class PostDocumentsIterator
         _contentToPost = contentToPost;
         _collection = collection;
         _stopOnError = stopOnError;
+        /* Limit to at most MAXIMUM_SUBMIT_LIMIT parallel upload requests,
+         * regardless of connection parallelism, to prevent over-committing
+         * the API */
+        _submitLimit = Math.min(MAXIMUM_SUBMIT_LIMIT,
+            collection.getInterface()
+                      .getProperty(HttpInterface.Property.ParallelRequestLimit,
+                                   DEFAULT_SUBMIT_LIMIT));
         advance();
     }
 
@@ -173,6 +181,9 @@ class PostDocumentsIterator
     // Stops submitting more batches following an error
     private final boolean _stopOnError;
 
+    // Limit to the number of outstanding batches uploaded at once
+    private final int _submitLimit;
+
     // Outstanding POST requests
     private final Deque<Request> _submitQueue = new LinkedList<>();
 
@@ -180,8 +191,11 @@ class PostDocumentsIterator
     private final Deque<Either<APIFailure<List<DocumentContent>>, Document>>
         _resultQueue = new LinkedList<>();
 
-    // Cap on the number of outstanding post batches
-    private static final int SUBMIT_LIMIT = 10;
+    // Default limit to the number of outstanding post batches
+    private static final int DEFAULT_SUBMIT_LIMIT = 10;
+
+    // Maximum number of parallel batch uploads
+    private static final int MAXIMUM_SUBMIT_LIMIT = 25;
 
     // Target size (in bytes) for a document batch
     private static final long BATCH_UPLOAD_TARGET = 25000;

@@ -14,6 +14,7 @@ import javax.json.*;
 
 import com.idibon.api.util.Either;
 import com.idibon.api.http.HttpFuture;
+import com.idibon.api.http.HttpInterface;
 
 import static com.idibon.api.model.Util.JSON_BF;
 
@@ -69,6 +70,15 @@ public class PredictionIterable<T extends Prediction>
             throw new Error("Impossible");
         }
 
+        /* configure the size of the internal request circular buffer based
+         * on the number of parallel requests supported by the HTTP interface.
+         * predictions should saturate this interface. double-buffer to ensure
+         * that OS thread-scheduling doesn't cause a thread to go idle waiting
+         * for the dispatch thread to add more work */
+        _dispatchLimit = 2 * target.getInterface()
+            .getProperty(HttpInterface.Property.ParallelRequestLimit,
+                         DEFAULT_DISPATCH_LIMIT);
+
         /* disable hierarchical predictions, since these don't work very well
          * setting the threshold to a value above 1.1 ensures that the server
          * will never traverse down the hierarchy, since the maximum confidence
@@ -92,20 +102,24 @@ public class PredictionIterable<T extends Prediction>
     // The task being predicted against
     private final Task _target;
 
+    /* The maximum number of outstanding requests to issue, based on the
+     * HTTP interface parallelism limit */
+    private final int _dispatchLimit;
+
     // Type of predictions (span vs document) being performed
     private final Constructor<T> _constructor;
 
     // The items that will be predicted
     private final Iterable<? extends DocumentContent> _items;
 
-    // Throttle the number of outstanding requests.
-    private static final int DISPATCH_LIMIT = 10;
+    // Default throttle for the number of outstanding requests.
+    private static final int DEFAULT_DISPATCH_LIMIT = 10;
 
     /**
      * Iterates over predictable items and issues prediction API requests
      * for each.
      *
-     * Uses a circular buffer internally (limited to DISPATCH_LIMIT items) to
+     * Uses a circular buffer internally (limited to _dispatchLimit items) to
      * store issued requests.
      */
     private class Iter
@@ -148,7 +162,7 @@ public class PredictionIterable<T extends Prediction>
         }
 
         private void advance(Entry last) {
-            while (_queue.size() < DISPATCH_LIMIT && _itemIt.hasNext()) {
+            while (_queue.size() < _dispatchLimit && _itemIt.hasNext()) {
                 Entry issue = (last != null) ? last : new Entry();
                 issue.request = _itemIt.next();
                 issue.future = makePrediction(issue.request);
