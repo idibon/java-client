@@ -143,6 +143,9 @@ public class JdkHttpInterface implements HttpInterface {
         );
     }
 
+    /**
+     * Implements {@link com.idibon.api.http.HttpInterface#getProperty(Property, int)}
+     */
     public int getProperty(HttpInterface.Property prop, int defaultValue) {
         switch (prop) {
         case ParallelRequestLimit:
