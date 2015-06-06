@@ -69,8 +69,7 @@ public class JdkHttpInterfaceIT {
     @Test public void hostnameNotInCertificate() throws Throwable {
         // Parse out the 'https://' and any trailing slashes from the API link
         // since we want it to take the unsecured path
-        String apiTargetBase = _apiTarget.replaceAll("^https://", "");
-        apiTargetBase = apiTargetBase.replaceAll("/$", "");
+        String apiTargetBase = _apiTarget.replaceAll("^https://([^/]+)/$", "$1");
 
         String addr = InetAddress.getByName(apiTargetBase).getHostAddress();
         JdkHttpInterface intf = new JdkHttpInterface()
