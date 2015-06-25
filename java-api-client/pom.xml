@@ -9,7 +9,18 @@
   <groupId>com.idibon.api.java-sdk</groupId>
   <artifactId>java-api-client</artifactId>
   <name>Idibon Java SDK API Client Library</name>
+  <description>Java HTTP client library for Idibon text analytics
+  services.</description>
   <packaging>jar</packaging>
+   <url>https://github.com/idibon/java-client</url>
+
+   <licenses>
+       <license>
+           <name>Apache License, Version 2.0</name>
+           <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+           <distribution>repo</distribution>
+       </license>
+   </licenses>
 
   <parent>
       <groupId>com.idibon.api</groupId>
@@ -17,6 +28,34 @@
       <relativePath>../pom.xml</relativePath>
       <version>1.0.1</version>
   </parent>
+
+  <profiles>
+      <profile>
+          <id>validation-dev</id>
+          <activation>
+              <property>
+                  <name>validation</name>
+              </property>
+          </activation>
+          <build>
+              <plugins>
+                  <plugin>
+                      <artifactId>maven-failsafe-plugin</artifactId>
+                      <version>2.6</version>
+                      <executions>
+                          <execution>
+                              <id>failsafe</id>
+                              <goals>
+                                  <goal>integration-test</goal>
+                                  <goal>verify</goal>
+                              </goals>
+                          </execution>
+                      </executions>
+                  </plugin>
+              </plugins>
+          </build>
+      </profile>
+  </profiles>
 
   <build>
       <plugins>
@@ -42,19 +81,6 @@
                   <show>protected</show>
                   <nohelp>true</nohelp>
               </configuration>
-          </plugin>
-
-          <plugin>
-              <artifactId>maven-failsafe-plugin</artifactId>
-              <version>2.6</version>
-              <executions>
-                  <execution>
-                      <goals>
-                          <goal>integration-test</goal>
-                          <goal>verify</goal>
-                      </goals>
-                  </execution>
-              </executions>
           </plugin>
       </plugins>
   </build>

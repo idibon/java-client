@@ -31,6 +31,7 @@ Name|Description
 [upload-json-documents](#upload-json-documents)|Upload one or more JSON documents to a collection
 [annotate-document](#annotate-document)|Add an assignment annotation for a document-scope task to a document
 [predict-content](#predict-content)|Generate API classifications for text on the command line
+[predict-idibon-public](#predict-idibon-public)|Generate API classifications using an Idibon Public server
 
 ### <a name="list-documents">list-documents Example App</a>
 
@@ -38,7 +39,7 @@ To run
 
 ```
 cd examples/list-documents/target
-java -cp list-documents-1.0.0-jar-with-dependencies.jar \
+java -cp list-documents-1.0.1-jar-with-dependencies.jar \
   com.idibon.ListDocuments $API_KEY $COLLECTION
 ```
 
@@ -47,7 +48,7 @@ java -cp list-documents-1.0.0-jar-with-dependencies.jar \
 To run
 ```
 cd examples/upload-json-documents/target
-java -cp upload-json-documents-1.0.0-jar-with-dependencies.jar \
+java -cp upload-json-documents-1.0.1-jar-with-dependencies.jar \
   com.idibon.UploadJsonDocuments $API_KEY $COLLECTION files.json...
 ```
 
@@ -72,7 +73,7 @@ JSON files should have the following structure:
 To run
 ```
 cd examples/annotate-document/target
-java -cp annotate-document-1.0.0-jar-with-dependencies.jar \
+java -cp annotate-document-1.0.1-jar-with-dependencies.jar \
   com.idibon.AnnotateDocument $API_KEY $COLLECTION $DOCUMENT $TASK $LABEL
 ```
 
@@ -94,10 +95,24 @@ to the console.
 To run
 ```
 cd examples/predict-content/target
-java -cp predict-content-1.0.0-jar-with-dependencies.jar \
-  com.idibon.PredictContent $API_KEY $COLLECTION $TASK Some content...
+java -cp predict-content-1.0.1-jar-with-dependencies.jar \
+  com.idibon.PredictContent $API_KEY $COLLECTION $TASK "Some content..."
 ```
 
 * `$TASK` should be the name of a document-scope task inside `$COLLECTION`
 
 * `Some content` should be whatever text you want to predict. It may be provided in quotes or unquoted.
+
+### <a name="predict-idibon-public">predict-idibon-public Example App</a>
+
+This example is based off of [predict-content](predict-content), but uses
+an Idibon Public server running on the local system rather than the Idibon
+enterprise service.
+
+
+To run
+```
+cd examples/predict-idibon-public/target
+java -cp predict-idibon-public-1.0.1.jar-with-dependencies.jar \
+  com.idibon.PredictIdibonPublic $COLLECTION $TASK "Some content..."
+```
