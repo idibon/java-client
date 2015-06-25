@@ -6,6 +6,20 @@
   <artifactId>annotate-document</artifactId>
   <name>Idibon Java SDK Example: Add an annotation to a document</name>
   <packaging>jar</packaging>
+  <description>Example application for Idibon Java SDK.</description>
+   <url>https://github.com/idibon/java-client</url>
+
+   <scm>
+       <url>git://github.com/idibon/java-client</url>
+   </scm>
+
+   <licenses>
+       <license>
+           <name>Apache License, Version 2.0</name>
+           <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+           <distribution>repo</distribution>
+       </license>
+   </licenses>
 
   <parent>
       <groupId>com.idibon.api</groupId>
