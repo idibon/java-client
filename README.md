@@ -1,7 +1,5 @@
-java-client
+Idibon Java SDK
 ===========
-
-Idibon API Java SDK
 
 Requires JDK 7 or newer, and [Maven 3](http://maven.apache.org/download.cgi).
 
@@ -20,7 +18,7 @@ Example apps are located in the `examples/` subdirectory.
 from the top-level directory.
 
 * To install the API client JAR in your local maven repository, run
-  `mvn install` from the `java-api-client/` directory.
+  `mvn install` from the top-level directory.
 
 * To generate JavaDocs for the API client, run `mvn javadoc:javadoc` from
   the `java-api-client/` directory.
