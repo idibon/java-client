@@ -36,5 +36,6 @@
        <module>examples/upload-json-documents</module>
        <module>examples/annotate-document</module>
        <module>examples/predict-content</module>
+       <module>examples/predict-idibon-public</module>
    </modules>
 </project>
