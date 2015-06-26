@@ -1,0 +1,11 @@
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
+.DS_Store/
+.DS_Store
+# Maven's target directory
+target/

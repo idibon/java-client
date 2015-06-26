@@ -1,0 +1,5 @@
+com.idibon.api
+com.idibon.api.http
+com.idibon.api.http.impl
+com.idibon.api.model
+com.idibon.api.util
