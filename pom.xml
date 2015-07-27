@@ -6,7 +6,7 @@
 
    <groupId>com.idibon.api</groupId>
    <artifactId>java-sdk</artifactId>
-   <version>1.0.1</version>
+   <version>1.0.2-SNAPSHOT</version>
    <packaging>pom</packaging>
    <name>Idibon Java SDK</name>
    <description>Java SDK for Idibon text analytics web
