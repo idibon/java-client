@@ -8,7 +8,7 @@ import java.lang.reflect.Method;
 
 import java.util.Arrays;
 
-import javax.json.JsonValue;
+import javax.json.*;
 
 import com.idibon.api.model.*;
 import com.idibon.api.http.*;
@@ -16,6 +16,16 @@ import com.idibon.api.util.Either;
 import com.idibon.api.util.Memoize;
 
 public class IdibonAPI {
+
+    /**
+     * Exception thrown when client attempts to create a collection that
+     * already exists on the server.
+     */
+    public static class CollectionAlreadyExistsException extends IOException {
+        public CollectionAlreadyExistsException(String name) {
+            super("Collection already exists with name: " + name);
+        }
+    }
 
     /**
      * Configure the HTTP interface that the client should use.
@@ -47,7 +57,53 @@ public class IdibonAPI {
      */
     public Collection collection(String name) {
         mustHaveInterface();
-        return _collections.memoize(createCollection(name));
+        return _collections.memoize(instantiateCollection(name));
+    }
+
+    /**
+     * Creates a new collection in the API.
+     *
+     * Verifies that no collection with the same name already exists, then
+     * creates the new collection.
+     *
+     * @param name Name for the new collection; must start with a letter a-z
+     *        or A-Z, and all characters must be valid characters in DNS names.
+     * @param description Description for the new collection.
+     */
+    public Collection createCollection(String name, String description)
+            throws IOException {
+        mustHaveInterface();
+        Collection existingOrNew = collection(name);
+        try {
+            existingOrNew.invalidate().get(Collection.Keys.uuid);
+            /* if this method completes successfully, the collection already
+             * exists; throw an exception in this case. */
+            throw new CollectionAlreadyExistsException(name);
+        } catch (HttpException.NotFound _) {
+            // ignore this exception, this is the desired behavior
+        }
+
+        validateCollectionName(name);
+        JsonObject json = Json.createObjectBuilder()
+            .add("collection", Json.createObjectBuilder()
+                 .add(Collection.Keys.description.name(), description)
+                 .build()).build();
+
+        Either<IOException, JsonObject> result = _httpIntf
+            .httpPut(existingOrNew.getEndpoint(), json)
+            .getAs(JsonObject.class);
+
+        if (result.isLeft()) throw result.left;
+
+        try {
+            Method preload = IdibonHash.class.getDeclaredMethod(
+                "preload", JsonObject.class);
+            preload.setAccessible(true);
+            existingOrNew.invalidate();
+            return (Collection)preload.invoke(existingOrNew, result.right);
+        } catch (Exception ex) {
+            throw new Error("Method invocation problem", ex);
+        }
     }
 
     /**
@@ -84,7 +140,7 @@ public class IdibonAPI {
      * Uses reflection and security over-rides to instantiate a new Collection
      * from outside the package.
      */
-    private Collection createCollection(String name) {
+    private Collection instantiateCollection(String name) {
         try {
             Method collInstance = Collection.class.getDeclaredMethod(
                 "instance", HttpInterface.class, String.class);
@@ -102,6 +158,28 @@ public class IdibonAPI {
     private void mustHaveInterface() {
         if (_httpIntf == null)
             throw new IllegalStateException("Interface is not configured");
+    }
+
+    /**
+     * Verifies that new collection names conform to the API restrictions
+     * on the supported character set for collection names.
+     */
+    private static void validateCollectionName(String name) {
+        if (name.length() == 0)
+            throw new IllegalArgumentException("empty names not allowed");
+
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            boolean isLatinLetter = (c >= 'a' && c <= 'z') ||
+                (c >= 'A' && c <= 'Z');
+            boolean isLatinDigit = (c >= '0' && c <= '9');
+            boolean isDnsPunctuation = (c == '_' || c == '-');
+
+            if (i == 0 && !isLatinLetter)
+                throw new IllegalArgumentException("first char not letter");
+            else if (!(isLatinLetter || isLatinDigit || isDnsPunctuation))
+                throw new IllegalArgumentException("invalid char: " + c);
+        }
     }
 
     // HTTP Interface used for all server communication

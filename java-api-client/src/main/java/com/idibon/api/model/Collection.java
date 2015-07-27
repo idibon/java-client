@@ -269,6 +269,34 @@ public class Collection extends IdibonHash {
         return new TaskBuilder(this, scope).setName(name);
     }
 
+    /**
+     * Deletes this collection.
+     */
+    public void delete() throws IOException {
+        JsonObject body = JSON_BF.createObjectBuilder()
+            .add("collection", true).build();
+
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpDelete(getEndpoint(), body).getAs(JsonObject.class);
+
+        if (result.isLeft()) throw result.left;
+        if (!result.right.getBoolean("deleted"))
+            throw new IOException ("Task was not deleted");
+
+        invalidate();
+        // propagate invalidation back to client's cache
+    }
+
+    /**
+     * Forces cached JSON data to be reloaded from the server.
+     */
+    @SuppressWarnings("unchecked")
+    @Override public Collection invalidate() {
+        super.invalidate();
+        for (Task t : _tasks.items()) t.invalidate();
+        return this;
+    }
+
     @Override public boolean equals(Object other) {
         if (other == this) return true;
         if (!(other instanceof Collection)) return false;
