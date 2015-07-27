@@ -42,6 +42,31 @@ public class IdibonAPI_IT {
                    .forServer(apiTarget).withApiKey(apiKey));
     }
 
+    private String randomName() {
+        return IdibonAPI_IT.class.getSimpleName() + "-" +
+            Long.toHexString(Double.doubleToLongBits(Math.random()));
+    }
+
+    @Test public void canCreateAndDeleteCollection() throws Exception {
+        Collection collection = _apiClient.createCollection(randomName(), "");
+        try {
+            collection.createTask(Task.Scope.document, "Test Task")
+                .setDescription("")
+                .addLabel("Test Label", "")
+                .commit();
+        } finally {
+            collection.delete();
+        }
+
+        // collection should not exist any more
+        try {
+            collection.get(Collection.Keys.uuid);
+            throw new RuntimeException("Collection was not deleted");
+        } catch (HttpException.NotFound _) {
+            // ignore; expected.
+        }
+    }
+
     @Test public void canLazyLoadCollection() throws Exception {
         Collection collection = _apiClient.collection("DemoOfTesla");
         JsonObject info = collection.getJson();
@@ -171,215 +196,278 @@ public class IdibonAPI_IT {
     }
 
     @Test public void canUploadAndDeleteDocuments() throws Exception {
-        Collection c = _apiClient.collection("e0db414891d6-test124");
+        Collection c = _apiClient.createCollection(randomName(), "");
         List<DocumentContent.Named> content = new ArrayList<>();
 
         try {
-            content.add(UploadableDoc.named("homer simpson").content("d'oh!"));
-            content.add(UploadableDoc.named("bart simpson").content("eat my shorts!"));
-            c.addDocuments(content);
+            try {
+                content.add(UploadableDoc.named("homer simpson").content("d'oh!"));
+                content.add(UploadableDoc.named("bart simpson").content("eat my shorts!"));
+                c.addDocuments(content);
 
-            // verify that the documents were actually uploaded
-            Document homer = c.document("homer simpson");
-            Document bart = c.document("bart simpson");
+                // verify that the documents were actually uploaded
+                Document homer = c.document("homer simpson");
+                Document bart = c.document("bart simpson");
 
-            assertThat(homer.getContent(), is("d'oh!"));
-            assertThat(bart.getContent(), is("eat my shorts!"));
+                assertThat(homer.getContent(), is("d'oh!"));
+                assertThat(bart.getContent(), is("eat my shorts!"));
 
+            } finally {
+                _apiClient.waitFor(c.document("homer simpson").deleteAsync(),
+                                   c.document("bart simpson").deleteAsync());
+            }
+
+            try {
+                c.document("homer simpson").getContent();
+                throw new RuntimeException("Document was not deleted");
+            } catch (HttpException.NotFound _) {
+                // ignore. the document should not be found
+            }
         } finally {
-            _apiClient.waitFor(c.document("homer simpson").deleteAsync(),
-                               c.document("bart simpson").deleteAsync());
-        }
-
-        try {
-            c.document("homer simpson").getContent();
-            throw new RuntimeException("Document was not deleted");
-        } catch (HttpException.NotFound _) {
-            // ignore. the document should not be found
+            c.delete();
         }
     }
 
     @Test public void canCommitAndDeleteAnnotations() throws Exception {
-        Collection c = _apiClient.collection("general_sentiment_5pt_scale");
-        c.addDocuments(Arrays.asList(
-            UploadableDoc.named("homer simpson").content("d'oh")));
-        Document homer = c.document("homer simpson");
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
-            Label l = c.task("Sentiment").label("Negative3");
-            c.commitAnnotations(buildAnnotations(Arrays.asList(
-                homer.createAssignment(l)
-                    .provenance(Annotation.Provenance.Human)
-                    .is(AnnotationBuilder.Assignment.Status.Valid)))
-            );
-            List<? extends Annotation> anns =
-                homer.invalidate().getAnnotations();
-            assertThat(anns, hasSize(1));
-            Annotation check = anns.get(0);
-            assertThat(check, is(instanceOf(Annotation.DocumentAssignment.class)));
-            Annotation.DocumentAssignment assign = (Annotation.DocumentAssignment)check;
-            assertThat(assign.label, is(l));
-            assertThat(assign.document, is(homer));
+            Task sentiment = c.createTask(Task.Scope.document, "Sentiment")
+                .addLabel("Positive", "")
+                .addLabel("Neutral", "")
+                .addLabel("Negative", "")
+                .commit();
+            c.addDocuments(Arrays.asList(
+                UploadableDoc.named("homer simpson").content("d'oh")));
+            Document homer = c.document("homer simpson");
+            try {
+                Label l = sentiment.label("Negative");
+                c.commitAnnotations(buildAnnotations(Arrays.asList(
+                    homer.createAssignment(l)
+                        .provenance(Annotation.Provenance.Human)
+                        .is(AnnotationBuilder.Assignment.Status.Valid)))
+                );
 
-            _apiClient.waitFor(assign.deleteAsync());
-            anns = homer.invalidate().getAnnotations();
-            assertThat(anns, is(empty()));
+                assertEquals(homer.getAnnotations(),
+                             homer.invalidate().getAnnotations());
+
+                List<? extends Annotation> anns = homer.getAnnotations();
+
+                assertThat(anns, hasSize(1));
+                Annotation check = anns.get(0);
+                assertThat(check, is(instanceOf(Annotation.DocumentAssignment.class)));
+                Annotation.DocumentAssignment assign = (Annotation.DocumentAssignment)check;
+                assertThat(assign.label, is(l));
+                assertThat(assign.document, is(homer));
+
+                _apiClient.waitFor(assign.deleteAsync());
+                anns = homer.invalidate().getAnnotations();
+                assertThat(anns, is(empty()));
+            } finally {
+                _apiClient.waitFor(homer.deleteAsync());
+            }
         } finally {
-            _apiClient.waitFor(homer.deleteAsync());
+            c.delete();
         }
     }
 
     @Test public void canAddAndDeleteTuningRules() throws Exception {
-        Collection c = _apiClient.collection("zest_zest");
-        Task task = c.task("Sentiment");
-        Label label = task.label("Neutral0");
-        TuningRules.Rule rule = label.createRule("hiybbprqag", 0.75);
-        task.addRules(rule);
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
-            assertThat(label.getRules(), hasSize(1));
-            assertThat(label.getRules().get(0).phrase, is(rule.phrase));
-            assertThat(label.getRules().get(0).weight, is(rule.weight));
-            TuningRules.Rule update = label.createRule(rule.phrase, 0.95);
-            task.addRules(update);
-            assertThat(label.getRules(), hasSize(1));
-            assertThat(label.getRules().get(0).phrase, is(update.phrase));
-            assertThat(label.getRules().get(0).weight, is(update.weight));
-            // should be a no-op, since the weights don't match
-            task.deleteRules(rule);
-            assertThat(label.getRules(), hasSize(1));
-            // update which rule will be deleted in the finally block
-            rule = update;
+            Task task = c.createTask(Task.Scope.document, "Sentiment")
+                .addLabel("Neutral0", "")
+                .addLabel("Positive1", "")
+                .addLabel("Negative1", "")
+                .commit();
+            Label label = task.label("Neutral0");
+            TuningRules.Rule rule = label.createRule("hiybbprqag", 0.75);
+            task.addRules(rule);
+            try {
+                assertThat(label.getRules(), hasSize(1));
+                assertThat(label.getRules().get(0).phrase, is(rule.phrase));
+                assertThat(label.getRules().get(0).weight, is(rule.weight));
+                TuningRules.Rule update = label.createRule(rule.phrase, 0.95);
+                task.addRules(update);
+                assertThat(label.getRules(), hasSize(1));
+                assertThat(label.getRules().get(0).phrase, is(update.phrase));
+                assertThat(label.getRules().get(0).weight, is(update.weight));
+                // should be a no-op, since the weights don't match
+                task.deleteRules(rule);
+                assertThat(label.getRules(), hasSize(1));
+                // update which rule will be deleted in the finally block
+                rule = update;
+            } finally {
+                task.deleteRules(rule);
+            }
+            /* move this outside the try, so that it doesn't clobber an
+             * earlier exception */
+            assertThat(label.getRules(), is(empty()));
         } finally {
-            task.deleteRules(rule);
+            c.delete();
         }
-        /* move this outside the try, so that it doesn't clobber an
-         * earlier exception */
-        assertThat(label.getRules(), is(empty()));
     }
 
     @Test public void canAddAndRemoveSubtasks() throws Exception {
-        Collection c = _apiClient.collection("zest_zest");
-        Task task = c.task("Relevance");
-        Label label = task.label("Relevant");
-        Task subtask = c.task("Sentiment");
-        task.addSubtaskTriggers(label, subtask);
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
-            Map<Label, Set<? extends Task>> ontology = task.getSubtasks();
-            assertThat(ontology, hasKey(label));
-            assertThat(ontology.get(label), contains(subtask));
+            Task task = c.createTask(Task.Scope.document, "Relevance")
+                .addLabel("Relevant", "")
+                .addLabel("Irrelevant", "")
+                .commit();
+            Label label = task.label("Relevant");
+            Task subtask = c.createTask(Task.Scope.document, "Sentiment")
+                .addLabel("Positive", "")
+                .addLabel("Negative", "")
+                .addLabel("Neutral", "")
+                .commit();
+            task.addSubtaskTriggers(label, subtask);
+            try {
+                Map<Label, Set<? extends Task>> ontology = task.getSubtasks();
+                assertThat(ontology, hasKey(label));
+                assertThat(ontology.get(label), contains(subtask));
+            } finally {
+                task.deleteSubtaskTriggers(label, subtask);
+            }
+            assertThat(task.getSubtasks().keySet(), is(empty()));
         } finally {
-            task.deleteSubtaskTriggers(label, subtask);
+            c.delete();
         }
-        assertThat(task.getSubtasks().keySet(), is(empty()));
     }
 
     @SuppressWarnings("unchecked")
     @Test public void canAddAndRemoveLabels() throws Exception {
-        Collection c = _apiClient.collection("zest_zest");
-        Task task = c.task("Relevance");
-        String desc = "This label is garbage";
-        Label garbage = task.createLabel("Garbage")
-            .setDescription(desc).commit();
-
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
-            assertThat(task.label("Garbage"), is(sameInstance(garbage)));
-            assertThat((List<Label>)(Object)task.getLabels(), hasItem(garbage));
-            assertThat(garbage.getDescription(), is(desc));
-        } finally {
-            garbage.delete();
-        }
+            Task task = c.createTask(Task.Scope.document, "Relevance").commit();
+            String desc = "This label is garbage";
+            Label garbage = task.createLabel("Garbage")
+                .setDescription(desc).commit();
 
-        assertThat((List<Label>)(Object)task.getLabels(), not(hasItem(garbage)));
+            try {
+                assertThat(task.label("Garbage"), is(sameInstance(garbage)));
+                task.invalidate();
+                assertThat((List<Label>)(Object)task.getLabels(), hasItem(garbage));
+                assertThat(garbage.getDescription(), is(desc));
+            } finally {
+                garbage.delete();
+            }
+
+            assertThat((List<Label>)(Object)task.getLabels(), not(hasItem(garbage)));
+        } finally {
+            c.delete();
+        }
     }
 
     @SuppressWarnings("unchecked")
     @Test public void automaticallyRenamesRulesAndSubtasks() throws Exception {
-        Collection c = _apiClient.collection("zest_zest");
-        Task task = c.task("Relevance");
-        Label garbage = task.createLabel("Garbage").commit();
-
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
-            Label backup = garbage;
-            task.addRules(garbage.createRule("hiybbprqag", 0.75));
-            task.addSubtaskTriggers(garbage, c.task("Sentiment"));
-            garbage = garbage.modify().setName("GarbageGarbage").commit();
-            assertThat(garbage.getName(), is("GarbageGarbage"));
-            assertThat(task.getSubtasks(), hasKey(garbage));
-            assertThat(task.getSubtasks(), not(hasKey(backup)));
-            assertThat((Set<Task>)(Object)task.getSubtasks().get(garbage),
-                       hasItem(c.task("Sentiment")));
-            assertThat(garbage.getRules(), hasSize(1));
-            assertThat(garbage.getRules().get(0).phrase, is("hiybbprqag"));
-        } finally {
-            garbage.delete();
-        }
+            Task task = c.createTask(Task.Scope.document, "Relevance")
+                .setDescription("")
+                .addLabel("Relevant", "")
+                .commit();
+            Label garbage = task.createLabel("Garbage").commit();
 
-        assertThat(task.getSubtasks().keySet(), is(empty()));
+            try {
+                Label backup = garbage;
+                task.addRules(garbage.createRule("hiybbprqag", 0.75));
+                task.addSubtaskTriggers(garbage, c.task("Sentiment"));
+                garbage = garbage.modify().setName("GarbageGarbage").commit();
+                assertThat(garbage.getName(), is("GarbageGarbage"));
+                assertThat(task.getSubtasks(), hasKey(garbage));
+                assertThat(task.getSubtasks(), not(hasKey(backup)));
+                assertThat((Set<Task>)(Object)task.getSubtasks().get(garbage),
+                           hasItem(c.task("Sentiment")));
+                assertThat(garbage.getRules(), hasSize(1));
+                assertThat(garbage.getRules().get(0).phrase, is("hiybbprqag"));
+            } finally {
+                garbage.delete();
+            }
+
+            assertThat(task.getSubtasks().keySet(), is(empty()));
+        } finally {
+            c.delete();
+        }
     }
 
     @Test public void canAddAndRemoveTasks() throws Exception {
-        Collection c = _apiClient.collection("zest_zest");
-        Task snowman = c.createTask(Task.Scope.document, "Hi ☃")
-            .setDescription("It's U+2603")
-            .addLabel("Snowman")
-            .addLabel("Frosty")
-            .disallowTraining()
-            .commit();
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
+            Task snowman = c.createTask(Task.Scope.document, "Hi ☃")
+                .setDescription("It's U+2603")
+                .addLabel("Snowman")
+                .addLabel("Frosty")
+                .disallowTraining()
+                .commit();
+            try {
+                c.invalidate();
+                assertThat(c.getAllTasks(), hasItem(snowman));
+            } finally {
+                snowman.delete();
+            }
             c.invalidate();
-            assertThat(c.getAllTasks(), hasItem(snowman));
+            assertThat(c.getAllTasks(), not(hasItem(snowman)));
         } finally {
-            snowman.delete();
+            c.delete();
         }
-        c.invalidate();
-        assertThat(c.getAllTasks(), not(hasItem(snowman)));
     }
 
     @Test public void automaticallyRenamesSubtasks() throws Exception {
-        Collection c = _apiClient.collection("zest_zest");
-        Task parent = c.createTask(Task.Scope.document, "Parent Task")
-            .addLabel("Trigger").commit();
-        Label trigger = parent.label("Trigger");
-
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
-            Task child = c.createTask(Task.Scope.document, "Child task").commit();
+            Task parent = c.createTask(Task.Scope.document, "Parent Task")
+                .addLabel("Trigger").commit();
+            Label trigger = parent.label("Trigger");
+
             try {
-                parent.addSubtaskTriggers(trigger, child);
-                assertThat(trigger.getSubtasks(), hasItem(child));
-                Task sibling = child;
-                child = child.modify().setName("Sibling").commit();
-                assertThat(child.getName(), is("Sibling"));
-                assertThat(trigger.getSubtasks(), not(hasItem(sibling)));
-                assertThat(trigger.getSubtasks(), hasItem(child));
+                Task child = c.createTask(Task.Scope.document, "Child task").commit();
+                try {
+                    parent.addSubtaskTriggers(trigger, child);
+                    assertThat(trigger.getSubtasks(), hasItem(child));
+                    Task sibling = child.modify().setName("Sibling").commit();
+                    assertThat(sibling.getName(), is("Sibling"));
+                    assertThat(trigger.getSubtasks(), hasItem(sibling));
+                    assertThat(trigger.getSubtasks(), not(hasItem(child)));
+                } finally {
+                    child.delete();
+                }
+                assertThat(trigger.getSubtasks(), not(hasItem(child)));
             } finally {
-                child.delete();
+                parent.delete();
             }
-            assertThat(trigger.getSubtasks(), not(hasItem(child)));
         } finally {
-            parent.delete();
+            c.delete();
         }
     }
 
     @Test public void distinguishesRootTasksFromAllTasks() throws Exception {
-        Collection c = _apiClient.collection("zest_zest");
-        assertThat(c.getRootTasks(), is(c.getAllTasks()));
-
-        Task parent = c.createTask(Task.Scope.document, "Parent Task")
-            .addLabel("Trigger").commit();
-        Label trigger = parent.label("Trigger");
-
+        Collection c = _apiClient.createCollection(randomName(), "");
         try {
-            Task child = c.createTask(Task.Scope.document, "Child task").commit();
+            Task dangling = c.createTask(Task.Scope.document, "Dangling Root")
+                .setDescription("").commit();
+
+            assertThat(c.getRootTasks(), hasItem(dangling));
+            assertThat(c.getRootTasks(), is(c.getAllTasks()));
+
+            Task parent = c.createTask(Task.Scope.document, "Parent Task")
+                .addLabel("Trigger").commit();
+            Label trigger = parent.label("Trigger");
+
             try {
-                assertThat(c.getRootTasks(), hasItems(parent, child));
-                parent.addSubtaskTriggers(trigger, child);
-                assertThat(c.getRootTasks(), hasItem(parent));
-                assertThat(c.getRootTasks(), not(hasItem(child)));
-                assertThat(c.getRootTasks(), is(not(c.getAllTasks())));
+                Task child = c.createTask(Task.Scope.document, "Child task").commit();
+                try {
+                    assertThat(c.getRootTasks(), hasItems(parent, child));
+                    parent.addSubtaskTriggers(trigger, child);
+                    assertThat(c.getRootTasks(), hasItem(parent));
+                    assertThat(c.getRootTasks(), not(hasItem(child)));
+                    assertThat(c.getRootTasks(), is(not(c.getAllTasks())));
+                } finally {
+                    child.delete();
+                }
             } finally {
-                child.delete();
+                parent.delete();
             }
         } finally {
-            parent.delete();
+            c.delete();
         }
     }
 
