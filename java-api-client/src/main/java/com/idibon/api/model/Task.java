@@ -13,6 +13,7 @@ import com.idibon.api.util.Memoize;
 import com.idibon.api.http.HttpInterface;
 import com.idibon.api.model.Collection;
 import static com.idibon.api.model.Util.JSON_BF;
+import static com.idibon.api.model.Util.*;
 import static com.idibon.api.model.TuningRules.CONFIG_TUNING_KEY;
 import static com.idibon.api.model.OntologyNode.CONFIG_SUBTASK_KEY;
 
@@ -205,6 +206,42 @@ public class Task extends IdibonHash {
     @SuppressWarnings("unchecked")
     public <T extends JsonValue> T get(Keys key) throws IOException {
         return (T)getJson().get(key.name());
+    }
+
+    /**
+     * Returns the task UUID
+     */
+    public UUID getUUID() throws IOException {
+        UUID uuid = (UUID)getCache().get(Keys.uuid);
+
+        if (uuid == null) {
+            String raw = getJson().getString(Keys.uuid.name(), null);
+            uuid = UUID.fromString(raw);
+            getCache().put(Keys.uuid, uuid);
+        }
+
+        return uuid;
+    }
+
+    /**
+     * Returns one of the Date keys, or null.
+     *
+     * @param dateKey The date value to retrieve
+     * @return The requested date, or null.
+     */
+    public Date getDate(Keys dateKey) throws IOException {
+        if (dateKey != Keys.updated_at && dateKey != Keys.created_at &&
+              dateKey != Keys.trained_at && dateKey != Keys.touched_at) {
+            throw new IllegalArgumentException("Not a date key");
+        }
+
+        Date date = (Date)getCache().get(dateKey);
+        if (date == null) {
+            date = parseDate(getJson().getString(dateKey.name(), null));
+            if (date != null) getCache().put(dateKey, date);
+        }
+
+        return date;
     }
 
     /**
