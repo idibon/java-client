@@ -281,7 +281,7 @@ public class Collection extends IdibonHash {
 
         if (result.isLeft()) throw result.left;
         if (!result.right.getBoolean("deleted"))
-            throw new IOException ("Task was not deleted");
+            throw new IOException("Collection was not deleted");
 
         invalidate();
         // propagate invalidation back to client's cache
