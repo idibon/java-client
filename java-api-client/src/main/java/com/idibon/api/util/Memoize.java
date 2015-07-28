@@ -3,6 +3,7 @@
  */
 package com.idibon.api.util;
 
+import java.util.ArrayList;
 import java.util.WeakHashMap;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
@@ -67,6 +68,35 @@ public class Memoize<Type> {
         try {
             Reference<Type> ref = _pool.remove(instance);
             return ref == null ? null : ref.get();
+        } finally {
+            _lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Creates a copy of all of the items currently in the pool
+     */
+    public Iterable<Type> items() {
+        _lock.readLock().lock();
+        try {
+            ArrayList<Type> allItems = new ArrayList<>(_pool.size());
+            for (Reference<Type> ref : _pool.values()) {
+                Type t = ref.get();
+                if (t != null) allItems.add(t);
+            }
+            return allItems;
+        } finally {
+            _lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Clears all cached references.
+     */
+    public void clear() {
+        _lock.writeLock().lock();
+        try {
+            _pool.clear();
         } finally {
             _lock.writeLock().unlock();
         }

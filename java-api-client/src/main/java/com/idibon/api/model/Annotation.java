@@ -231,6 +231,18 @@ public abstract class Annotation {
      */
     public abstract HttpFuture<JsonValue> deleteAsync();
 
+    @Override public boolean equals(Object other) {
+        if (other == this) return true;
+
+        if (!(other instanceof Annotation)) return false;
+
+        Annotation ann = (Annotation)other;
+        if (ann.uuid != null)
+            return ann.uuid.equals(this.uuid);
+
+        return false;
+    }
+
     /**
      * An Assignment annotation. Subclassed to DocumentAssignment and
      * SpanAssignment.
