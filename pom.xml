@@ -48,5 +48,6 @@
        <module>examples/annotate-document</module>
        <module>examples/predict-content</module>
        <module>examples/predict-idibon-public</module>
+       <module>examples/print-ontology</module>
    </modules>
 </project>
