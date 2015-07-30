@@ -1,0 +1,70 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.idibon.api.java-sdk.examples</groupId>
+  <artifactId>print-ontology</artifactId>
+  <name>Idibon Java SDK Example: Print a Collection or Task Ontology</name>
+  <packaging>jar</packaging>
+   <description>Example application for Idibon Java SDK.</description>
+   <url>https://github.com/idibon/java-client</url>
+
+   <scm>
+       <url>git://github.com/idibon/java-client</url>
+   </scm>
+
+   <licenses>
+       <license>
+           <name>Apache License, Version 2.0</name>
+           <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+           <distribution>repo</distribution>
+       </license>
+   </licenses>
+
+  <parent>
+      <groupId>com.idibon.api</groupId>
+      <artifactId>java-sdk</artifactId>
+      <relativePath>../../pom.xml</relativePath>
+      <version>1.0.2-SNAPSHOT</version>
+  </parent>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <build>
+      <plugins>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-assembly-plugin</artifactId>
+              <executions>
+                  <execution>
+                      <phase>package</phase>
+                      <goals>
+                          <goal>attached</goal>
+                      </goals>
+                  </execution>
+              </executions>
+              <configuration>
+                  <archive>
+                      <manifest>
+                          <addClasspath>true</addClasspath>
+                          <classpathPrefix>lib/</classpathPrefix>
+                      </manifest>
+                  </archive>
+                  <descriptorRefs>
+                      <descriptorRef>jar-with-dependencies</descriptorRef>
+                  </descriptorRefs>
+              </configuration>
+          </plugin>
+      </plugins>
+  </build>
+
+  <dependencies>
+      <dependency>
+          <groupId>com.idibon.api.java-sdk</groupId>
+          <artifactId>java-api-client</artifactId>
+          <version>${project.version}</version>
+      </dependency>
+  </dependencies>
+</project>

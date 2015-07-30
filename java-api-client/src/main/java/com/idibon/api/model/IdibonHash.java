@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.idibon.api.http.*;
 import javax.json.*;
@@ -83,6 +85,7 @@ public abstract class IdibonHash {
         synchronized(this) {
             _jsonFuture = null;
         }
+        _jsonCache = null;
         return (T)this;
     }
 
@@ -141,6 +144,22 @@ public abstract class IdibonHash {
         return (T)this;
     }
 
+    /**
+     * Safely get the cache instance, instantiating one if it doesn't
+     * already exist.
+     */
+    protected Map getCache() {
+        /* this is racy, but the only negative outcome is that multiple
+         * threads may each instantiate a ConcurrentHashMap, and all but
+         * one of the instances will be GCd immediately. */
+        Map map = _jsonCache;
+        if (map == null) {
+            map = new ConcurrentHashMap<>();
+            _jsonCache = map;
+        }
+        return map;
+    }
+
     protected IdibonHash(String endpoint, HttpInterface httpIntf) {
         _httpIntf = httpIntf;
         _endpoint = endpoint;
@@ -154,4 +173,8 @@ public abstract class IdibonHash {
 
     /// The JSON hash of data for this object. Potentially-lazy-loaded.
     private HttpFuture<JsonValue> _jsonFuture;
+
+    /* Simple cache of data loaded from the JsonObject, to avoid expensive
+     * repetitive parsing. */
+    private volatile Map _jsonCache;
 }

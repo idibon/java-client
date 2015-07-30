@@ -30,6 +30,17 @@
        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
    </properties>
 
+  <profiles>
+      <profile>
+          <activation>
+              <jdk>1.8</jdk>
+          </activation>
+          <modules>
+              <module>examples/show-updated-tasks</module>
+          </modules>
+      </profile>
+  </profiles>
+
    <modules>
        <module>java-api-client</module>
        <module>examples/list-documents</module>
@@ -37,5 +48,6 @@
        <module>examples/annotate-document</module>
        <module>examples/predict-content</module>
        <module>examples/predict-idibon-public</module>
+       <module>examples/print-ontology</module>
    </modules>
 </project>

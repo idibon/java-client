@@ -5,7 +5,6 @@ package com.idibon.api.model;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.idibon.api.util.Either;
 import com.idibon.api.http.*;
@@ -266,7 +265,6 @@ public class Document extends IdibonHash
     @SuppressWarnings("unchecked")
     @Override public Document invalidate() {
         super.invalidate();
-        _jsonCache = null;
         return this;
     }
 
@@ -286,22 +284,6 @@ public class Document extends IdibonHash
         return instance(parent, name).preload(obj);
     }
 
-    /**
-     * Safely get the cache instance, instantiating one if it doesn't
-     * already exist.
-     */
-    private Map<Keys, Object> getCache() {
-        /* this is racy, but the only negative outcome is that multiple
-         * threads may each instantiate a ConcurrentHashMap, and all but
-         * one of the instances will be GCd immediately. */
-        Map<Keys, Object> map = _jsonCache;
-        if (map == null) {
-            map = new ConcurrentHashMap<>();
-            _jsonCache = map;
-        }
-        return map;
-    }
-
     private Document(String name, Collection parent, HttpInterface httpIntf) {
         super(parent.getEndpoint() + "/" + percentEncode(name), httpIntf);
         _name = name;
@@ -310,8 +292,4 @@ public class Document extends IdibonHash
 
     private final Collection _parent;
     private final String _name;
-
-    /* Simple cache of data loaded from the JsonObject, to avoid expensive
-     * repetitive parsing. */
-    private volatile Map<Keys, Object> _jsonCache;
 }
