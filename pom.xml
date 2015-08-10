@@ -37,6 +37,7 @@
           </activation>
           <modules>
               <module>examples/show-updated-tasks</module>
+              <module>examples/batch-predict</module>
           </modules>
       </profile>
   </profiles>

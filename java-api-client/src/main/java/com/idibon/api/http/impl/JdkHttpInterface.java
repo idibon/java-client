@@ -63,11 +63,11 @@ public class JdkHttpInterface implements HttpInterface {
      * changed dynamically as needed by the application.
      *
      * @param limit The new number of parallel connections. Must be between
-     *        1 - 100.
+     *        1 - 1000.
      * @return this
      */
     public JdkHttpInterface maxConnections(int limit) {
-        if (limit <= 0 || limit > 100)
+        if (limit <= 0 || limit > 1000)
             throw new IllegalArgumentException("Invalid connection limit");
 
         if (_threadPool.isShutdown() || _threadPool.isTerminating())
@@ -321,6 +321,8 @@ public class JdkHttpInterface implements HttpInterface {
             http.setRequestProperty("Authorization", "Basic " + credentials);
         }
 
+        http.setRequestProperty("User-Agent", SDK_USER_AGENT);
+
         if (_serverAddress.getPort() != -1) {
             String host = String.format("%s:%d", _serverAddress.getHost(),
                                         _serverAddress.getPort());
@@ -408,9 +410,33 @@ public class JdkHttpInterface implements HttpInterface {
      * performance is needed. */
     static final int DEFAULT_CONNECTION_LIMIT = 10;
 
+    static final String SDK_USER_AGENT;
+
+    private static final String POM_PROPERTIES =
+        "/META-INF/maven/com.idibon.api.java-sdk/java-api-client/pom.properties";
+
     static {
         System.setProperty("http.maxConnections",
                            Integer.toString(DEFAULT_CONNECTION_LIMIT));
+
+        String version = "1.0";
+        try {
+            java.util.Properties props = new java.util.Properties();
+            InputStream is = JdkHttpInterface.class
+                .getResourceAsStream(POM_PROPERTIES);
+            try {
+                if (is != null) {
+                    props.load(is);
+                    version = props.getProperty("version");
+                }
+            } finally {
+                is.close();
+            }
+        } catch (Exception _) {
+            // ignore exceptions trying to load SDK version
+        }
+
+        SDK_USER_AGENT = "Idibon Java SDK/" + version;
     }
 
     /**
