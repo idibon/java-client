@@ -32,8 +32,9 @@ Name|Description
 [annotate-document](#annotate-document)|Add an assignment annotation for a document-scope task to a document
 [predict-content](#predict-content)|Generate API classifications for text on the command line
 [predict-idibon-public](#predict-idibon-public)|Generate API classifications using an Idibon Public server
-[show-updated-tasks](#show-updated-tasks)|List all tasks in a collection updated since a specific time (JDK 8)
 [print-ontology](#print-ontology)|Prints a collection ontology, or branch of an ontology, to the console.
+[show-updated-tasks](#show-updated-tasks)|List all tasks in a collection updated since a specific time (JDK 8)
+[batch-predict](#batch-predict)|Batch classifies documents in a collection or text file against a task in parallel (JDK 8).
 
 ### <a name="list-documents">list-documents Example App</a>
 
@@ -123,6 +124,22 @@ java -cp predict-idibon-public-$SDK_VERSION-jar-with-dependencies.jar \
 
 * `Some content` should be whatever text you want to predict. It may be provided in quotes or unquoted.
 
+### <a name="print-ontology">print-ontology Example App</a>
+
+This example app prints an ontology, or a branch of an ontology, using a tree view
+style visualization to the console. It demonstrates using the task and sub-task
+navigation features of the SDK.
+
+To run
+```
+cd examples/print-ontology/target
+java -cp print-ontology-$SDK_VERSION-jar-with-dependencies.jar \
+  com.idibon.PrintOntology $API_KEY $COLLECTION [$TASK]
+```
+
+* `$TASK` is an optional parameter, restricting the print out to just the ontology
+branch starting at the named task.
+
 ### <a name="show-updated-tasks">show-updated-tasks Example App (JDK 8)</a>
 
 This example app demonstrates how to filter tasks using JDK 8 streams and
@@ -139,18 +156,30 @@ java -cp show-updated-tasks-$SDK_VERSION-jar-with-dependencies.jar \
 * `ISO-8601-Date` should be an ISO-8601 date string (`YYYY-mm-dd'T'HH:mm:ss'Z'`);
 tasks last updated before this time will not be reported.
 
-### <a name="print-ontology">print-ontology Example App</a>
+### <a name="batch-predict">batch-predict Example App (JDK 8)</a>
 
-This example app prints an ontology, or a branch of an ontology, using a tree view
-style visualization to the console. It demonstrates using the task and sub-task
-navigation features of the SDK.
+This example app uses highly-parallel connections to classify documents stored in
+a collection, or document content provided by a text file (each line in the text
+file is treated as an individual document) using a task provided on the command
+line.
 
-To run
+This example uses Java 8 streams and lambdas to sequentially process the
+classification results.
+
+To run and see the command line options:
 ```
-cd examples/print-ontology/target
-java -cp print-ontology-$SDK_VERSION-jar-with-dependencies.jar \
-  com.idibon.PrintOntology $API_KEY $COLLECTION [$TASK]
+cd examples/batch-predict/target
+java -cp batch-predict-$SDK_VERSION-jar-with-dependencies.jar \
+  com.idibon.BatchPredict -h
 ```
 
-* `$TASK` is an optional parameter, restricting the print out to just the ontology
-branch starting at the named task.
+Command line options include
+
+Flag|Description
+--------|--------
+`-k <key>`|API Key
+`-c <string>`|Collection name
+`-t <string>`|Task name
+`-n <int>`|Maximum number of documents to read from the collection
+`-i <filename>`|Filename of newline-separated documents to classify
+`-p <int>`|Set prediction parallelism (1 - 1000, default 10)
