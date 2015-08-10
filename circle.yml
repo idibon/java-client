@@ -1,0 +1,18 @@
+machine:
+  java:
+    version: oraclejdk8
+
+general:
+  branches:
+    ignore:
+      - gh-pages
+  artifacts:
+    - "java-api-client/target/*.jar"
+    - "java-api-client/target/surefire-reports/*.txt"
+    - "java-api-client/target/failsafe-reports/*.txt"
+
+dependencies:
+  override:
+    # ensure that example app dependencies on the project parent
+    # don't result in false test failures
+    - mvn --fail-never dependency:go-offline || true
