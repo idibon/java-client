@@ -75,7 +75,7 @@ class PredictionIterableNontrivial<T extends Prediction<T>>
          * that OS thread-scheduling doesn't cause a thread to go idle waiting
          * for the dispatch thread to add more work */
         _dispatchLimit = 2 * target.getInterface().getProperty(HttpInterface.Property.ParallelRequestLimit,
-        		DEFAULT_DISPATCH_LIMIT);
+            DEFAULT_DISPATCH_LIMIT);
 
         /* disable hierarchical predictions, since these don't work very well
          * setting the threshold to a value above 1.1 ensures that the server

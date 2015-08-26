@@ -46,12 +46,12 @@ class PredictionIterableTrivial<T extends Prediction<T>>
      */
     public PredictionIterableTrivial<T> withSignificantFeatures(double threshold) {
         _includeFeatures = true;
-		
+
         try {
-			_trivialPrediction = getTrivialAcceptPrediction();
-		} catch (IOException e) {
-			throw new Error("Error retrieving task labels");			
-		}
+            _trivialPrediction = getTrivialAcceptPrediction();
+        } catch (IOException e) {
+            throw new Error("Error retrieving task labels");
+        }
         
         return this;
     }
@@ -68,11 +68,11 @@ class PredictionIterableTrivial<T extends Prediction<T>>
         _target = target;
         _items = items;
 
-		try {
-			_trivialPrediction = getTrivialAcceptPrediction();
-		} catch (IOException e) {
-			throw new Error("Error retrieving task labels");			
-		}
+        try {
+            _trivialPrediction = getTrivialAcceptPrediction();
+        } catch (IOException e) {
+            throw new Error("Error retrieving task labels");
+        }
     }
     
     /**
@@ -82,30 +82,30 @@ class PredictionIterableTrivial<T extends Prediction<T>>
      */
     private JsonArray getTrivialAcceptPrediction() throws IOException {
 
-    	JsonObjectBuilder featuresBuilder = JSON_BF.createObjectBuilder();
-    	JsonObjectBuilder classesBuilder = JSON_BF.createObjectBuilder();
-    	JsonObjectBuilder predictionBuilder = JSON_BF.createObjectBuilder();
-    	JsonArrayBuilder predictionArrayBuilder = JSON_BF.createArrayBuilder();
-    	String labelName = DEFAULT_LABEL_NAME;
-    	
-    	for (Label label: _target.getLabels()) {
-    		labelName = label.getName();
-    		classesBuilder.add(labelName, TRIVIAL_ACCEPT_CONFIDENCE);
-    	}
+        JsonObjectBuilder featuresBuilder = JSON_BF.createObjectBuilder();
+        JsonObjectBuilder classesBuilder = JSON_BF.createObjectBuilder();
+        JsonObjectBuilder predictionBuilder = JSON_BF.createObjectBuilder();
+        JsonArrayBuilder predictionArrayBuilder = JSON_BF.createArrayBuilder();
+        String labelName = DEFAULT_LABEL_NAME;
 
-		/* Use an actual label as the class name. Normally, this would be the label with the
-    	 * highest confidence val, but since they are all 1.0 it doesn't matter */
-    	predictionBuilder.add("class", labelName);
-    	predictionBuilder.add("confidence", TRIVIAL_ACCEPT_CONFIDENCE);
-    	predictionBuilder.add("classes", classesBuilder);
-    	
-        if (_includeFeatures) {
-        	predictionBuilder.add("features", featuresBuilder);
+        for (Label label: _target.getLabels()) {
+            labelName = label.getName();
+            classesBuilder.add(labelName, TRIVIAL_ACCEPT_CONFIDENCE);
         }
-    	    	
-    	// Shove the single prediction into an array
-    	predictionArrayBuilder.add(predictionBuilder);    	    	
-    	return predictionArrayBuilder.build();
+
+        /* Use an actual label as the class name. Normally, this would be the label with the
+         * highest confidence val, but since they are all 1.0 it doesn't matter */
+        predictionBuilder.add("class", labelName);
+        predictionBuilder.add("confidence", TRIVIAL_ACCEPT_CONFIDENCE);
+        predictionBuilder.add("classes", classesBuilder);
+
+        if (_includeFeatures) {
+            predictionBuilder.add("features", featuresBuilder);
+        }
+
+        // Shove the single prediction into an array
+        predictionArrayBuilder.add(predictionBuilder);
+        return predictionArrayBuilder.build();
     }
 
     // Include significant features with the results?

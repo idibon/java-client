@@ -10,8 +10,8 @@ import com.idibon.api.util.Either;
 /**
  * Generates predictions for one or more predictable items.
  */
-public interface PredictionIterable<T extends Prediction> 
-	extends Iterable<Either<APIFailure<DocumentContent>, T>> {
+public interface PredictionIterable<T extends Prediction>
+    extends Iterable<Either<APIFailure<DocumentContent>, T>> {
 
     /**
      * Default feature threshold. Returns moderate-strongly predictive features
