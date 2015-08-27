@@ -5,7 +5,10 @@ package com.idibon.api.model;
 
 import java.util.*;
 import java.io.IOException;
+import java.io.StringReader;
+
 import javax.json.*;
+
 import com.idibon.api.util.Either;
 import com.idibon.api.util.Memoize;
 import com.idibon.api.http.HttpInterface;
@@ -745,13 +748,34 @@ public class Task extends IdibonHash {
         if (!feature.getString("name").equals(TRIVIAL_ACCEPT_FEATURE_NAME))
             return false;
         
-        // If the ClarabridgeRule is not full of empty arrays, this is not trivial
-        JsonObject label_rules = feature.getJsonObject("parameters").getJsonObject("label_rules");
-        Set<String> lrules_keys = label_rules.keySet();
-        for (String lrules_key : lrules_keys) {
-            JsonArray tmpArray = label_rules.getJsonArray(lrules_key);
-            List<JsonArray> tmpArray_values = tmpArray.getValuesAs(JsonArray.class);            
-            for (JsonArray tmpArray2 : tmpArray_values) {
+        /* If the ClarabridgeRule is not full of empty arrays, this is not trivial.
+         * Annoyingly, the label_rules portion is not a JsonObject; rather, it is a string that wants to be
+         * a JsonObject, complete with escape characters for each quotation mark. Therefore, we have to do a bit
+         * of cleanup before we can turn it into something we can parse: a JsonObject.
+         */
+        JsonObject parameters = feature.getJsonObject("parameters");
+        String labelRulesString = parameters.getJsonString("label_rules").toString();
+               
+        if (labelRulesString.length() > 1) {
+            // Remove the leading and trailing quotation marks
+            if (labelRulesString.startsWith("\"")) {
+                labelRulesString = labelRulesString.substring(1, labelRulesString.length());
+            }
+            if (labelRulesString.endsWith("\"")) {
+                labelRulesString = labelRulesString.substring(0, labelRulesString.length() - 1);
+            }
+            // Remove the escape characters
+            labelRulesString = labelRulesString.replace("\\\"", "\"");
+        }
+        
+        // Interpret the string to turn it into a real boy
+        JsonObject labelRules = Json.createReader(new StringReader(labelRulesString)).readObject();
+ 
+        Set<String> lrulesKeys = labelRules.keySet();
+        for (String lrulesKey : lrulesKeys) {
+            JsonArray tmpArray = labelRules.getJsonArray(lrulesKey);
+            List<JsonArray> tmpArrayValues = tmpArray.getValuesAs(JsonArray.class);            
+            for (JsonArray tmpArray2 : tmpArrayValues) {
                 for (int i = 0; i < tmpArray2.size(); i++) {
                     // If the contents are not empty, it is not trivial                    
                     if(tmpArray2.getString(i).length() > 0)

@@ -68,11 +68,12 @@ public class TaskTest {
             "{\"name\":\"Balinese\"},{\"name\":\"Russian Blue\"},{\"name\":\"Maine Coon\"}]," +
             "\"features\":[{\"uuid\":\"00000000-0000-0000-0000-000000000001\"," +
             "\"name\":\"ClarabridgeRule\",\"parameters\":{\"label_rules\":" +
-            "{\"American Short Hair\":[[\"\",\"\",\"\",\"\"]],\"Siamese\":[[\"\",\"\",\"\",\"\"]]," +
-            "\"Persian\":[[\"\",\"\",\"\",\"\"]]," + 
-            "\"Burmese\":[[\"\",\"\",\"\",\"\"]],\"Siberian\":[[\"\",\"\",\"\",\"\"]]," +
-            "\"Balinese\":[[\"\",\"\",\"\",\"\"]],\"Russian Blue\":[[\"\",\"\",\"\",\"\"]]," +
-            "\"Maine Coon\":[[\"\",\"\",\"\",\"\"]]}},\"is_active\":true}]}}";
+            "\"{\\\"American Short Hair\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siamese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
+            "\\\"Persian\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," + 
+            "\\\"Burmese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siberian\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
+            "\\\"Balinese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Russian Blue\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
+            "\\\"Maine Coon\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]}\"},\"is_active\":true}]}}";
+        
         JsonObject taskJson = Json.createReader(new StringReader(json)).readObject();
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
@@ -134,17 +135,18 @@ public class TaskTest {
     
     @Test public void testNontrivialRules2() throws Exception {
         String json = "{\"task\":{\"uuid\":\"00000000-0000-0000-0000-000000000000\"," +
-            "\"name\":\"ClassifyCats\",\"scope\":\"document\"," + 
-            "\"labels\":[{\"name\":\"American Short Hair\"},{\"name\":\"Siamese\"}," +
-            "{\"name\":\"Persian\"},{\"name\":\"Burmese\"},{\"name\":\"Siberian\"}," +
-            "{\"name\":\"Balinese\"},{\"name\":\"Russian Blue\"},{\"name\":\"Maine Coon\"}]," +
-            "\"features\":[{\"uuid\":\"00000000-0000-0000-0000-000000000001\"," +
-            "\"name\":\"ClarabridgeRule\",\"parameters\":{\"label_rules\":" +
-            "{\"American Short Hair\":[[\"\",\"\",\"\",\"\"]],\"Siamese\":[[\"\",\"\",\"\",\"\"]]," +
-            "\"Persian\":[[\"\",\"\",\"white\",\"\"]]," + 
-            "\"Burmese\":[[\"\",\"\",\"\",\"\"]],\"Siberian\":[[\"\",\"\",\"\",\"\"]]," +
-            "\"Balinese\":[[\"\",\"\",\"\",\"\"]],\"Russian Blue\":[[\"\",\"\",\"\",\"\"]]," +
-            "\"Maine Coon\":[[\"\",\"\",\"\",\"\"]]}},\"is_active\":true}]}}";
+                "\"name\":\"ClassifyCats\",\"scope\":\"document\"," + 
+                "\"labels\":[{\"name\":\"American Short Hair\"},{\"name\":\"Siamese\"}," +
+                "{\"name\":\"Persian\"},{\"name\":\"Burmese\"},{\"name\":\"Siberian\"}," +
+                "{\"name\":\"Balinese\"},{\"name\":\"Russian Blue\"},{\"name\":\"Maine Coon\"}]," +
+                "\"features\":[{\"uuid\":\"00000000-0000-0000-0000-000000000001\"," +
+                "\"name\":\"ClarabridgeRule\",\"parameters\":{\"label_rules\":" +
+                "\"{\\\"American Short Hair\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siamese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
+                "\\\"Persian\\\":[[\\\"\\\",\\\"\\\",\\\"white\\\",\\\"\\\"]]," + 
+                "\\\"Burmese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siberian\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
+                "\\\"Balinese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Russian Blue\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
+                "\\\"Maine Coon\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]}\"},\"is_active\":true}]}}";
+        
         JsonObject taskJson = Json.createReader(new StringReader(json)).readObject();
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
@@ -152,6 +154,6 @@ public class TaskTest {
         java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialAccept");
         method.setAccessible(true);
 
-        assertThat(((boolean)method.invoke(mockTask)), is(false));
+        assertThat((boolean)method.invoke(mockTask), is(false));
     }
 }
