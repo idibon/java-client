@@ -107,7 +107,7 @@ public class TaskTest {
         assert(predictionJson.getJsonObject(0).get("features").toString().equals("{}"));
     }
     
-    @Test public void testNonTrivialRules() throws Exception {
+    @Test public void testNontrivialRules() throws Exception {
         String json = "{\"task\":{\"uuid\":\"00000000-0000-0000-0000-000000000000\",\"name\":\"ClassifyCats\"," +
             "\"collection_id\":\"00000000-0000-0000-0000-000000000001\",\"description\":\"ClassifyCats\"," +
             "\"scope\":\"document\",\"trainable\":true,\"is_active\":true,\"created_at\":" +
@@ -122,6 +122,29 @@ public class TaskTest {
             "\"show_label_descriptions\":\"labels\",\"question_text\":\"What is the best label for this {{scope}}?" +
             "\",\"label_order\":[]}},\"touched_at\":\"2014-08-04T17:23:59Z\",\"labels\":[{\"name\":\"American Short Hair\"}," +
             "{\"name\":\"Siamese\"},{\"name\":\"Persian\"}],\"features\":[]}}";
+        JsonObject taskJson = Json.createReader(new StringReader(json)).readObject();
+        Collection mockCollection = Collection.instance(null, "C");
+        Task mockTask = Task.instance(mockCollection, taskJson);
+        
+        java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialAccept");
+        method.setAccessible(true);
+
+        assertThat(((boolean)method.invoke(mockTask)), is(false));
+    }
+    
+    @Test public void testNontrivialRules2() throws Exception {
+        String json = "{\"task\":{\"uuid\":\"00000000-0000-0000-0000-000000000000\"," +
+            "\"name\":\"ClassifyCats\",\"scope\":\"document\"," + 
+            "\"labels\":[{\"name\":\"American Short Hair\"},{\"name\":\"Siamese\"}," +
+            "{\"name\":\"Persian\"},{\"name\":\"Burmese\"},{\"name\":\"Siberian\"}," +
+            "{\"name\":\"Balinese\"},{\"name\":\"Russian Blue\"},{\"name\":\"Maine Coon\"}]," +
+            "\"features\":[{\"uuid\":\"00000000-0000-0000-0000-000000000001\"," +
+            "\"name\":\"ClarabridgeRule\",\"parameters\":{\"label_rules\":" +
+            "{\"American Short Hair\":[[\"\",\"\",\"\",\"\"]],\"Siamese\":[[\"\",\"\",\"\",\"\"]]," +
+            "\"Persian\":[[\"\",\"\",\"white\",\"\"]]," + 
+            "\"Burmese\":[[\"\",\"\",\"\",\"\"]],\"Siberian\":[[\"\",\"\",\"\",\"\"]]," +
+            "\"Balinese\":[[\"\",\"\",\"\",\"\"]],\"Russian Blue\":[[\"\",\"\",\"\",\"\"]]," +
+            "\"Maine Coon\":[[\"\",\"\",\"\",\"\"]]}},\"is_active\":true}]}}";
         JsonObject taskJson = Json.createReader(new StringReader(json)).readObject();
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
