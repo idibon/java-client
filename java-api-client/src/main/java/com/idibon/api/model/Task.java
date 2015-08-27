@@ -4,15 +4,16 @@
 package com.idibon.api.model;
 
 import java.util.*;
-
 import java.io.IOException;
+import java.io.StringReader;
+
 import javax.json.*;
 
 import com.idibon.api.util.Either;
 import com.idibon.api.util.Memoize;
 import com.idibon.api.http.HttpInterface;
 import com.idibon.api.model.Collection;
-import static com.idibon.api.model.Util.JSON_BF;
+
 import static com.idibon.api.model.Util.*;
 import static com.idibon.api.model.TuningRules.CONFIG_TUNING_KEY;
 import static com.idibon.api.model.OntologyNode.CONFIG_SUBTASK_KEY;
@@ -121,7 +122,6 @@ public class Task extends IdibonHash {
      *
      * @param doc A {@link com.idibon.api.model.DocumentContent} to predict.
      * @return The {@link com.idibon.api.model.SpanPrediction} result.
-
      */
     public DocumentPrediction classifications(DocumentContent doc)
           throws IOException {
@@ -142,11 +142,24 @@ public class Task extends IdibonHash {
      */
     public PredictionIterable<DocumentPrediction> classifications(
           Iterable<? extends DocumentContent> items) throws IOException {
+        
+        PredictionIterable<DocumentPrediction> docPredictions;
+
         if (getScope() != Scope.document)
             throw new UnsupportedOperationException("Not a document task");
-
-        return new PredictionIterable<DocumentPrediction>(
-            DocumentPrediction.class, this, items);
+               
+        if (this.isTrivialAccept()) {
+            /* If this is a task with no rules defined, there's no need to make API calls for predictions.
+             * Just return a stock response instead.
+             */
+            docPredictions = (PredictionIterable<DocumentPrediction>) new PredictionIterableTrivial<DocumentPrediction>(
+                DocumentPrediction.class, this, items);
+        } else {
+            docPredictions = (PredictionIterable<DocumentPrediction>) new PredictionIterableNontrivial<DocumentPrediction>(
+                DocumentPrediction.class, this, items);
+        }
+        
+        return docPredictions;
     }
 
     /**
@@ -181,7 +194,7 @@ public class Task extends IdibonHash {
         if (getScope() != Scope.span)
             throw new UnsupportedOperationException("Not a span task");
 
-        return new PredictionIterable<SpanPrediction>(
+        return new PredictionIterableNontrivial<SpanPrediction>(
             SpanPrediction.class, this, items);
     }
 
@@ -709,7 +722,60 @@ public class Task extends IdibonHash {
         }
         return node;
     }
+    
+    /**
+     * Private helper function to inspect the task and determine whether it qualifies
+     * as a trivial-accept case. Criteria include:
+     *  1. No tuning dictionary entries
+     *  2. A single feature 'ClarabridgeRule' consisting of empty arrays.
+     */
+    private boolean isTrivialAccept() throws IOException {    
+        JsonArray features = this.getJson().getJsonArray("features");
+        
+        // If there are dictionary tuning rules, this is not trivial
+        Map<Label, List<? extends TuningRules.Rule>> rules = this.getRules();
+        if (rules.size() > 0) {
+            for (List<?> rule : rules.values()) {
+                if (rule.size() > 0)
+                    return false;
+            }
+        }
 
+        // If there is not exactly one feature named 'ClarabridgeRule', this is not trivial
+        if (features.size() != 1)
+            return false;
+        JsonObject feature = features.getJsonObject(0);
+        if (!feature.getString("name").equals(TRIVIAL_ACCEPT_FEATURE_NAME))
+            return false;
+        
+        /* If the ClarabridgeRule is not full of empty arrays, this is not trivial.
+         * Annoyingly, the label_rules portion is not a JsonObject; rather, it is a string that wants to be
+         * a JsonObject, complete with escape characters for each quotation mark. Therefore, we have to do a bit
+         * of cleanup before we can turn it into something we can parse: a JsonObject.
+         */
+        JsonObject parameters = feature.getJsonObject("parameters");
+        String labelRulesString = parameters.getJsonString("label_rules").getString();
+        
+        // Interpret the string to turn it into a real boy
+        JsonObject labelRules = Json.createReader(new StringReader(labelRulesString)).readObject();
+ 
+        Set<String> lrulesKeys = labelRules.keySet();
+        for (String lrulesKey : lrulesKeys) {
+            JsonArray tmpArray = labelRules.getJsonArray(lrulesKey);
+            List<JsonArray> tmpArrayValues = tmpArray.getValuesAs(JsonArray.class);            
+            for (JsonArray tmpArray2 : tmpArrayValues) {
+                for (int i = 0; i < tmpArray2.size(); i++) {
+                    // If the contents are not empty, it is not trivial                    
+                    if(tmpArray2.getString(i).length() > 0)
+                        return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+
+    private static final String TRIVIAL_ACCEPT_FEATURE_NAME = "ClarabridgeRule";
     private volatile TuningRules _tuningRules;
     private volatile OntologyNode _ontology;
     private final Memoize<Label> _labels;
