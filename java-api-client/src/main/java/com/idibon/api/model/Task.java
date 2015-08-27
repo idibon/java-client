@@ -727,7 +727,7 @@ public class Task extends IdibonHash {
      *  2. A single feature 'ClarabridgeRule' consisting of empty arrays.
      */
     private boolean isTrivialAccept() throws IOException {    
-        JsonArray features = (JsonArray)this.getJson().get("features");
+        JsonArray features = this.getJson().getJsonArray("features");
         
         // If there are dictionary tuning rules, this is not trivial
         Map<Label, List<? extends TuningRules.Rule>> rules = this.getRules();
@@ -747,14 +747,14 @@ public class Task extends IdibonHash {
         
         // If the ClarabridgeRule is not full of empty arrays, this is not trivial
         JsonObject label_rules = feature.getJsonObject("parameters").getJsonObject("label_rules");
-        for (Iterator<?> lrules_values = label_rules.values().iterator(); lrules_values.hasNext();) {
-            JsonArray tmpArray = (JsonArray)lrules_values.next();
-            if (tmpArray.size() > 0) {
-                JsonArray tmpArray2 = tmpArray.getJsonArray(0);
-                for (Iterator<?> tmpArray3 = tmpArray2.iterator(); tmpArray3.hasNext();) {
-                    String elem = (String)tmpArray3.next().toString();
-                    // If the contents are not empty, it is not trivial
-                    if (!elem.equals("\"\""))
+        Set<String> lrules_keys = label_rules.keySet();
+        for (String lrules_key : lrules_keys) {
+            JsonArray tmpArray = label_rules.getJsonArray(lrules_key);
+            List<JsonArray> tmpArray_values = tmpArray.getValuesAs(JsonArray.class);            
+            for (JsonArray tmpArray2 : tmpArray_values) {
+                for (int i = 0; i < tmpArray2.size(); i++) {
+                    // If the contents are not empty, it is not trivial                    
+                    if(tmpArray2.getString(i).length() > 0)
                         return false;
                 }
             }
