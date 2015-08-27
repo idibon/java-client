@@ -754,19 +754,7 @@ public class Task extends IdibonHash {
          * of cleanup before we can turn it into something we can parse: a JsonObject.
          */
         JsonObject parameters = feature.getJsonObject("parameters");
-        String labelRulesString = parameters.getJsonString("label_rules").toString();
-               
-        if (labelRulesString.length() > 1) {
-            // Remove the leading and trailing quotation marks
-            if (labelRulesString.startsWith("\"")) {
-                labelRulesString = labelRulesString.substring(1, labelRulesString.length());
-            }
-            if (labelRulesString.endsWith("\"")) {
-                labelRulesString = labelRulesString.substring(0, labelRulesString.length() - 1);
-            }
-            // Remove the escape characters
-            labelRulesString = labelRulesString.replace("\\\"", "\"");
-        }
+        String labelRulesString = parameters.getJsonString("label_rules").getString();
         
         // Interpret the string to turn it into a real boy
         JsonObject labelRules = Json.createReader(new StringReader(labelRulesString)).readObject();
