@@ -17,6 +17,12 @@ import static com.idibon.api.model.Util.JSON_BF;
  */
 public class Label {
 
+    /**
+     * The default confidence threshold value returned by
+     * {@link com.idibon.api.model.Label#getConfidenceThreshold} if a custom
+     * threshold for this label is not defined. 0.5 indicates 50% confidence.
+     */
+    public static final double DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
     static final String CONFIG_CONFIDENCE_THRESHOLDS_KEY = "confidence_thresholds";
 
     /**
@@ -94,6 +100,31 @@ public class Label {
      */
     public String getName() {
         return _name;
+    }
+
+    /**
+     * Returns the suggested confidence threshold (i.e., accept / reject
+     * threshold) for classifications using this label, if present, or
+     * returns DEFAULT_CONFIDENCE_THRESHOLD.
+     */
+    public double getConfidenceThreshold() throws IOException {
+        JsonObject config = _task.get(Task.Keys.config);
+        if (config == null) return DEFAULT_CONFIDENCE_THRESHOLD;
+
+        JsonObject thresholds =
+            config.getJsonObject(CONFIG_CONFIDENCE_THRESHOLDS_KEY);
+        if (thresholds == null) return DEFAULT_CONFIDENCE_THRESHOLD;
+
+        JsonObject labels = thresholds.getJsonObject("labels");
+        if (labels == null) return DEFAULT_CONFIDENCE_THRESHOLD;
+
+        JsonObject thisLabel = labels.getJsonObject(getName());
+        if (thisLabel == null) return DEFAULT_CONFIDENCE_THRESHOLD;
+
+        JsonNumber suggested = thisLabel.getJsonNumber("suggested");
+        return (suggested != null) ?
+            suggested.doubleValue() :
+            DEFAULT_CONFIDENCE_THRESHOLD;
     }
 
     /**
