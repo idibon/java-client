@@ -59,55 +59,55 @@ public class TaskTest {
             (Set)new HashSet(Arrays.asList(mockCollection.task("sub1"),
                                            mockCollection.task("sub2")))));
     }
-    
+
     @Test public void testTrivialRules() throws Exception {
         String json = "{\"task\":{\"uuid\":\"00000000-0000-0000-0000-000000000000\"," +
-            "\"name\":\"ClassifyCats\",\"scope\":\"document\"," + 
+            "\"name\":\"ClassifyCats\",\"scope\":\"document\"," +
             "\"labels\":[{\"name\":\"American Short Hair\"},{\"name\":\"Siamese\"}," +
             "{\"name\":\"Persian\"},{\"name\":\"Burmese\"},{\"name\":\"Siberian\"}," +
             "{\"name\":\"Balinese\"},{\"name\":\"Russian Blue\"},{\"name\":\"Maine Coon\"}]," +
             "\"features\":[{\"uuid\":\"00000000-0000-0000-0000-000000000001\"," +
             "\"name\":\"ClarabridgeRule\",\"parameters\":{\"label_rules\":" +
             "\"{\\\"American Short Hair\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siamese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
-            "\\\"Persian\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," + 
+            "\\\"Persian\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
             "\\\"Burmese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siberian\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
             "\\\"Balinese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Russian Blue\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
             "\\\"Maine Coon\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]}\"},\"is_active\":true}]}}";
-        
+
         JsonObject taskJson = Json.createReader(new StringReader(json)).readObject();
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
 
-        /* Creating fake documents. This could really be anything, since it won't be used in 
+        /* Creating fake documents. This could really be anything, since it won't be used in
          * an actual prediction. Since there are no rules, it is a trivial accept */
         Document mockDocument = Document.instance(mockCollection, "Cats are similar in anatomy to the " +
-            "other felids, with strong, flexible bodies, quick reflexes, sharp retractable claws, " + 
+            "other felids, with strong, flexible bodies, quick reflexes, sharp retractable claws, " +
             "and teeth adapted to killing small prey.");
         List<DocumentContent> docs = new ArrayList();
         for (int i = 0; i < 2; i++) {
             docs.add(mockDocument);
         }
-        
+
         // Ensure that the top-level prediction is 1.0
         PredictionIterable<DocumentPrediction> prediction = mockTask.classifications(docs);
         JsonArray predictionJson = prediction.iterator().next().right.getJson();
         assert(predictionJson.getJsonObject(0).get("confidence").toString().equals("1.0"));
-        
+
         // Ensure that all labels are predicted as 1.0
         JsonObject labels = predictionJson.getJsonObject(0).getJsonObject("classes");
         for (String label : labels.keySet()) {
             assert(labels.get(label).toString().equals("1.0"));
         }
-        
+
         // Ensure that there are no features
         assert(predictionJson.getJsonObject(0).get("features") == null);
-        
+
         // Specify that we want to see features, then ensure that an empty feature object is included
         prediction = prediction.withSignificantFeatures();
         predictionJson = prediction.iterator().next().right.getJson();
         assert(predictionJson.getJsonObject(0).get("features").toString().equals("{}"));
     }
-    
+
     @Test public void testNontrivialRules() throws Exception {
         String json = "{\"task\":{\"uuid\":\"00000000-0000-0000-0000-000000000000\",\"name\":\"ClassifyCats\"," +
             "\"collection_id\":\"00000000-0000-0000-0000-000000000001\",\"description\":\"ClassifyCats\"," +
@@ -126,34 +126,64 @@ public class TaskTest {
         JsonObject taskJson = Json.createReader(new StringReader(json)).readObject();
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
-        
+
         java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialAccept");
         method.setAccessible(true);
 
         assertThat(((boolean)method.invoke(mockTask)), is(false));
     }
-    
+
     @Test public void testNontrivialRules2() throws Exception {
         String json = "{\"task\":{\"uuid\":\"00000000-0000-0000-0000-000000000000\"," +
-                "\"name\":\"ClassifyCats\",\"scope\":\"document\"," + 
+                "\"name\":\"ClassifyCats\",\"scope\":\"document\"," +
                 "\"labels\":[{\"name\":\"American Short Hair\"},{\"name\":\"Siamese\"}," +
                 "{\"name\":\"Persian\"},{\"name\":\"Burmese\"},{\"name\":\"Siberian\"}," +
                 "{\"name\":\"Balinese\"},{\"name\":\"Russian Blue\"},{\"name\":\"Maine Coon\"}]," +
                 "\"features\":[{\"uuid\":\"00000000-0000-0000-0000-000000000001\"," +
                 "\"name\":\"ClarabridgeRule\",\"parameters\":{\"label_rules\":" +
                 "\"{\\\"American Short Hair\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siamese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
-                "\\\"Persian\\\":[[\\\"\\\",\\\"\\\",\\\"white\\\",\\\"\\\"]]," + 
+                "\\\"Persian\\\":[[\\\"\\\",\\\"\\\",\\\"white\\\",\\\"\\\"]]," +
                 "\\\"Burmese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Siberian\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
                 "\\\"Balinese\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]],\\\"Russian Blue\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]," +
                 "\\\"Maine Coon\\\":[[\\\"\\\",\\\"\\\",\\\"\\\",\\\"\\\"]]}\"},\"is_active\":true}]}}";
-        
+
         JsonObject taskJson = Json.createReader(new StringReader(json)).readObject();
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
-        
+
         java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialAccept");
         method.setAccessible(true);
 
         assertThat((boolean)method.invoke(mockTask), is(false));
+    }
+
+    @Test public void testUpdateConfigHash() throws Exception {
+        java.lang.reflect.Method method =
+            Task.class.getDeclaredMethod("getUpdatedConfigHash",
+                JsonObject.class, String.class, String.class);
+
+        method.setAccessible(true);
+
+        String json = "{\"tuning\":{\"A\":{}}," +
+            "\"sub_tasks\":{\"A\":[\"subtask\"]}," +
+            "\"confidence_thresholds\":{\"labels\":{" +
+            "\"A\":{\"suggested\":0.875}}}}";
+
+        JsonObject configJson = Json.createReader(new StringReader(json)).readObject();
+        JsonObject r = (JsonObject)method.invoke(null, configJson, "A", "B");
+        assertThat(r.getJsonObject("tuning"), hasKey("B"));
+        assertThat(r.getJsonObject("tuning").size(), is(1));
+        assertThat(r.getJsonObject("sub_tasks"), hasKey("B"));
+        assertThat(r.getJsonObject("sub_tasks").size(), is(1));
+        assertThat(r.getJsonObject("confidence_thresholds")
+                   .getJsonObject("labels"), hasKey("B"));
+        assertThat(r.getJsonObject("confidence_thresholds")
+                   .getJsonObject("labels").size(), is(1));
+
+        r = (JsonObject)method.invoke(null, configJson, "A", null);
+        assertThat(r.getJsonObject("tuning").keySet(), is(empty()));
+        assertThat(r.getJsonObject("sub_tasks").keySet(), is(empty()));
+        assertThat(r.getJsonObject("confidence_thresholds")
+                    .getJsonObject("labels").keySet(), is(empty()));
     }
 }

@@ -17,6 +17,8 @@ import static com.idibon.api.model.Util.JSON_BF;
  */
 public class Label {
 
+    static final String CONFIG_CONFIDENCE_THRESHOLDS_KEY = "confidence_thresholds";
+
     /**
      * Keys that may be present in a Label JSON.
      */
