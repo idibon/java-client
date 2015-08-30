@@ -664,6 +664,33 @@ public class Task extends IdibonHash {
         JsonObject config = get(Keys.config);
         if (config == null) return;
 
+        JsonObject updates = getUpdatedConfigHash(config, oldName, newName);
+
+        if (updates == null) {
+            invalidate();
+            return;
+        }
+
+        JsonObject task = JSON_BF.createObjectBuilder()
+          .add("task", JSON_BF.createObjectBuilder()
+             .add(Keys.config.name(), updates).build()).build();
+
+        Either<IOException, JsonObject> result =
+            _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
+        if (result.isLeft()) throw result.left;
+        invalidate(); // clear out cached parse results
+        preload(result.right);
+    }
+
+    /**
+     * Clones the task config hash, replacing entries referring to an old
+     * label name with entries referring to the new name following a
+     * {@link com.idibon.api.model.Task#modify} operation. Helper method
+     * for {@link com.idibon.api.model.Task#updateLabelInConfig}
+     */
+    private static JsonObject getUpdatedConfigHash(JsonObject config,
+            String oldName, String newName) {
+
         JsonObjectBuilder updates = null; // lazily created when needed
 
         /* the tuning dictionary and ontology are both hashes of label name
@@ -683,20 +710,26 @@ public class Task extends IdibonHash {
             }
         }
 
-        if (updates == null) {
-            invalidate();
-            return;
+        if (config.containsKey(Label.CONFIG_CONFIDENCE_THRESHOLDS_KEY)) {
+            JsonObject thresholds = config
+                .getJsonObject(Label.CONFIG_CONFIDENCE_THRESHOLDS_KEY)
+                .getJsonObject("labels");
+
+            JsonObjectBuilder cloned = JSON_BF.createObjectBuilder();
+            for (Map.Entry<String, JsonValue> entry: thresholds.entrySet()) {
+                String target = entry.getKey();
+                if (target.equals(oldName)) target = newName;
+                if (target != null) cloned.add(target, entry.getValue());
+            }
+
+            cloned = JSON_BF.createObjectBuilder()
+                .add("labels", cloned.build());
+
+            if (updates == null) updates = JSON_BF.createObjectBuilder();
+            updates.add(Label.CONFIG_CONFIDENCE_THRESHOLDS_KEY, cloned.build());
         }
 
-        JsonObject task = JSON_BF.createObjectBuilder()
-          .add("task", JSON_BF.createObjectBuilder()
-             .add(Keys.config.name(), updates.build()).build()).build();
-
-        Either<IOException, JsonObject> result =
-            _httpIntf.httpPost(getEndpoint(), task).getAs(JsonObject.class);
-        if (result.isLeft()) throw result.left;
-        invalidate(); // clear out cached parse results
-        preload(result.right);
+        return (updates == null) ? null : updates.build();
     }
 
     /**

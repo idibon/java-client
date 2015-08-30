@@ -448,11 +448,15 @@ public class DocumentSearcher
                 }
             }
 
-            _nextStart += _currentBatch.right.size();
-            _limitRemain -= _currentBatch.right.size();
+            if (_currentBatch.isRight()) {
+                _nextStart += _currentBatch.right.size();
+                _limitRemain -= _currentBatch.right.size();
 
-            // pre-load the next batch if one exists
-            if (cursor != null && _limitRemain > 0) dispatchNext(cursor);
+                // pre-load the next batch if one exists
+                if (cursor != null && _limitRemain > 0) dispatchNext(cursor);
+            } else {
+                if (_limitRemain > 0) dispatchNext(null);
+            }
         }
 
         /**
