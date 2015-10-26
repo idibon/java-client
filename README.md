@@ -25,13 +25,15 @@ from the top-level directory.
 
 ## Example Apps
 
+All example applications require a valid Idibon Terminal account or, where noted, a locally-installed Idibon Public server.
+
 Name|Description
 --------|--------
 [list-documents](#list-documents)|Lists all of the document names in a collection
 [upload-json-documents](#upload-json-documents)|Upload one or more JSON documents to a collection
 [annotate-document](#annotate-document)|Add an assignment annotation for a document-scope task to a document
-[predict-content](#predict-content)|Generate API classifications for text on the command line
-[predict-idibon-public](#predict-idibon-public)|Generate API classifications using an Idibon Public server
+[predict-content](#predict-content)|Generate text classifications from the command line, using Idibon Terminal
+[predict-idibon-public](#predict-idibon-public)|Generate text classifications using an Idibon Public server
 [print-ontology](#print-ontology)|Prints a collection ontology, or branch of an ontology, to the console.
 [show-updated-tasks](#show-updated-tasks)|List all tasks in a collection updated since a specific time (JDK 8)
 [batch-predict](#batch-predict)|Batch classifies documents in a collection or text file against a task in parallel (JDK 8).
@@ -88,7 +90,7 @@ java -cp annotate-document-$SDK_VERSION.jar-with-dependencies.jar \
 
 ### <a name="predict-content">predict-content Example App</a>
 
-This example app demonstrates the Idibon API's streaming predictive
+This example app demonstrates Idibon Terminal's streaming predictive
 classification capabilities by taking an arbitrary string of text
 provided on the command line and generating a prediction against a
 user-defined task. The full classification results, including
@@ -109,8 +111,8 @@ java -cp predict-content-$SDK_VERSION-jar-with-dependencies.jar \
 ### <a name="predict-idibon-public">predict-idibon-public Example App</a>
 
 This example is based off of [predict-content](predict-content), but uses
-an Idibon Public server running on the local system rather than the Idibon
-enterprise service.
+an Idibon Public server running on the local system rather than Idibon
+Terminal.
 
 
 To run
