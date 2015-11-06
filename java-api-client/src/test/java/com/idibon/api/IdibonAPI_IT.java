@@ -361,6 +361,10 @@ public class IdibonAPI_IT {
     @Test public void automaticallyRenamesRulesAndSubtasks() throws Exception {
         Collection c = _apiClient.createCollection(randomName(), "");
         try {
+            // note: this task must be created for the sub task triggers that point at it to work farther down
+            c.createTask(Task.Scope.document, "Sentiment")
+                                    .setDescription("")
+                                    .commit();
             Task task = c.createTask(Task.Scope.document, "Relevance")
                 .setDescription("")
                 .addLabel("Relevant", "")
@@ -406,34 +410,6 @@ public class IdibonAPI_IT {
             }
             c.invalidate();
             assertThat(c.getAllTasks(), not(hasItem(snowman)));
-        } finally {
-            c.delete();
-        }
-    }
-
-    @Test public void automaticallyRenamesSubtasks() throws Exception {
-        Collection c = _apiClient.createCollection(randomName(), "");
-        try {
-            Task parent = c.createTask(Task.Scope.document, "Parent Task")
-                .addLabel("Trigger").commit();
-            Label trigger = parent.label("Trigger");
-
-            try {
-                Task child = c.createTask(Task.Scope.document, "Child task").commit();
-                try {
-                    parent.addSubtaskTriggers(trigger, child);
-                    assertThat(trigger.getSubtasks(), hasItem(child));
-                    Task sibling = child.modify().setName("Sibling").commit();
-                    assertThat(sibling.getName(), is("Sibling"));
-                    assertThat(trigger.getSubtasks(), hasItem(sibling));
-                    assertThat(trigger.getSubtasks(), not(hasItem(child)));
-                } finally {
-                    child.delete();
-                }
-                assertThat(trigger.getSubtasks(), not(hasItem(child)));
-            } finally {
-                parent.delete();
-            }
         } finally {
             c.delete();
         }
