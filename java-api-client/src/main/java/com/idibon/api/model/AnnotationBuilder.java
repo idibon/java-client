@@ -166,6 +166,22 @@ public abstract class AnnotationBuilder<T extends Annotation> {
             return this;
         }
 
+	/**
+	 * Clears the is_negated flag for this assignment.
+	 */
+	public AnnotationBuilder.Assignment positiveExample() {
+	    _negativeExample = false;
+	    return this;
+	}
+
+	/**
+	 * Sets the is_negated flag for this Assignment.
+	 */
+	public AnnotationBuilder.Assignment negativeExample() {
+	    _negativeExample = true;
+	    return this;
+	}
+
         /**
          * Sets the status and is_trainable flags for this Assignment.
          *
