@@ -1,9 +1,9 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0    http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
    <modelVersion>4.0.0</modelVersion>
 
    <groupId>com.idibon.api</groupId>
    <artifactId>java-sdk</artifactId>
-   <version>1.0.2</version>
+   <version>1.0.3-SNAPSHOT</version>
    <packaging>pom</packaging>
    <name>Idibon Java SDK</name>
    <description>Java SDK for Idibon text analytics web
@@ -14,7 +14,7 @@
        <url>https://github.com/idibon/java-client</url>
        <connection>scm:git:git://github.com/idibon/java-client.git</connection>
        <developerConnection>scm:git:git@github.com:idibon/java-client.git</developerConnection>
-     <tag>v1.0.2</tag>
+     <tag>HEAD</tag>
   </scm>
 
    <licenses>
