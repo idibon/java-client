@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.idibon.api.java-sdk.examples</groupId>
@@ -11,7 +10,8 @@
 
    <scm>
        <url>git://github.com/idibon/java-client</url>
-   </scm>
+     <tag>v1.0.2</tag>
+  </scm>
 
    <licenses>
        <license>
@@ -25,7 +25,7 @@
       <groupId>com.idibon.api</groupId>
       <artifactId>java-sdk</artifactId>
       <relativePath>../../pom.xml</relativePath>
-      <version>1.0.2-SNAPSHOT</version>
+      <version>1.0.2</version>
   </parent>
 
   <properties>
