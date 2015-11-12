@@ -14,7 +14,9 @@
    <url>https://github.com/idibon/java-client</url>
 
    <scm>
-       <url>git://github.com/idibon/java-client</url>
+       <url>https://github.com/idibon/java-client</url>
+       <connection>scm:git:git://github.com/idibon/java-client.git</connection>
+       <developerConnection>scm:git:git@github.com:idibon/java-client.git</developerConnection>
    </scm>
 
    <licenses>
@@ -41,6 +43,19 @@
           </modules>
       </profile>
   </profiles>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-release-plugin</artifactId>
+        <version>2.5.3</version>
+        <configuration>
+          <tagNameFormat>v@{project.version}</tagNameFormat>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
    <modules>
        <module>java-api-client</module>
