@@ -56,6 +56,12 @@ class PredictionIterableTrivial<T extends Prediction<T>>
         return this;
     }
 
+    /**
+     * Used in the case of Trivial Clarabridge Rules.
+     * @param clazz
+     * @param target
+     * @param items
+     */
     PredictionIterableTrivial(Class<T> clazz, Task target,
           Iterable<? extends DocumentContent> items) {
         try {
@@ -77,7 +83,7 @@ class PredictionIterableTrivial<T extends Prediction<T>>
     
     /**
      * Private helper function to generate a stock prediction tree for use
-     * in trivial accept cases. Returns an array consisting of a single prediction
+     * in trivial clarabridge accept cases. Returns an array consisting of a single prediction
      * with confidence levels set to 1.0 for all labels.
      */
     private JsonArray getTrivialAcceptPrediction() throws IOException {
