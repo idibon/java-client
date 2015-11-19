@@ -148,9 +148,10 @@ public class Task extends IdibonHash {
         if (getScope() != Scope.document)
             throw new UnsupportedOperationException("Not a document task");
                
-        if (this.isTrivialAccept()) {
-            /* If this is a task with no rules defined, there's no need to make API calls for predictions.
-             * Just return a stock response instead.
+        if (this.isTrivialClarabridgeRule()) {
+            /* 
+             * If this is a task with no rules defined and has a trivial Clarabridge rule 
+             * there's no need to make API calls for predictions. Just return a stock response instead.
              */
             docPredictions = (PredictionIterable<DocumentPrediction>) new PredictionIterableTrivial<DocumentPrediction>(
                 DocumentPrediction.class, this, items);
@@ -758,11 +759,11 @@ public class Task extends IdibonHash {
     
     /**
      * Private helper function to inspect the task and determine whether it qualifies
-     * as a trivial-accept case. Criteria include:
+     * as a trivial-Clarabridge rule case. Criteria to meet:
      *  1. No tuning dictionary entries
      *  2. A single feature 'ClarabridgeRule' consisting of empty arrays.
      */
-    private boolean isTrivialAccept() throws IOException {    
+    private boolean isTrivialClarabridgeRule() throws IOException {    
         JsonArray features = this.getJson().getJsonArray("features");
         
         // If there are dictionary tuning rules, this is not trivial

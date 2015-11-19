@@ -127,7 +127,7 @@ public class TaskTest {
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
 
-        java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialAccept");
+        java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialClarabridgeRule");
         method.setAccessible(true);
 
         assertThat(((boolean)method.invoke(mockTask)), is(false));
@@ -151,7 +151,7 @@ public class TaskTest {
         Collection mockCollection = Collection.instance(null, "C");
         Task mockTask = Task.instance(mockCollection, taskJson);
 
-        java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialAccept");
+        java.lang.reflect.Method method = Task.class.getDeclaredMethod("isTrivialClarabridgeRule");
         method.setAccessible(true);
 
         assertThat((boolean)method.invoke(mockTask), is(false));

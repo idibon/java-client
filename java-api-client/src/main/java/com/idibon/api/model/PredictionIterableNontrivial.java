@@ -60,6 +60,12 @@ class PredictionIterableNontrivial<T extends Prediction<T>>
         return this;
     }
 
+    /**
+     * Used for regular prediction cases.
+     * @param clazz
+     * @param target
+     * @param items
+     */
     PredictionIterableNontrivial(Class<T> clazz, Task target,
           Iterable<? extends DocumentContent> items) {
         try {
